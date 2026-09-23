@@ -53,7 +53,7 @@ src/
 
 Fleet convention is *"the view never integrates physics; the model never imports
 scenery."* This sim keeps the second half exactly and bends the first, which is a
-deliberate carve-out (also recorded in `CLAUDE.md`).
+deliberate carve-out (also recorded in `AGENTS.md`).
 
 The reason is that there is no CPU-side fluid state to put in a model. Velocity,
 pressure, dye and vorticity exist only as GPU textures; there is no array to
