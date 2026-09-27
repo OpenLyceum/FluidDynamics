@@ -1,6 +1,7 @@
 import type { Plugin, Rollup } from "vite";
 import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
+import { description, name } from "./package.json";
 
 /**
  * Security headers required for:
@@ -98,6 +99,22 @@ function inlineAsset(html: string, fileName: string, item: Rollup.OutputChunk | 
 }
 
 /**
+ * Fill `%SIM_DESCRIPTION%` in index.html from package.json, so the page meta tags,
+ * the PWA manifest and package.json can never disagree. Runs before Vite's own
+ * `%ENV%` replacement (order: "pre").
+ */
+function simMetadataHtml(): Plugin {
+  const escaped = description.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+  return {
+    name: "sim-metadata-html",
+    transformIndexHtml: {
+      order: "pre",
+      handler: (html: string): string => html.replaceAll("%SIM_DESCRIPTION%", escaped),
+    },
+  };
+}
+
+/**
  * Dependency-free single-file plugin. After the bundle is generated, splice every
  * JS chunk and CSS asset that `index.html` references directly into the HTML as
  * inline tags, drop those now-orphaned files, and strip external icon links so the
@@ -170,17 +187,18 @@ export default defineConfig(({ mode }) => {
       headers: securityHeaders,
     },
     plugins: single
-      ? [inlineSingleFile()]
+      ? [simMetadataHtml(), inlineSingleFile()]
       : [
+          simMetadataHtml(),
           VitePWA({
             registerType: "autoUpdate",
             includeAssets: ["favicon.ico", "icons/apple-touch-icon.png"],
             manifest: {
-              id: "fluid-dynamics",
+              id: name,
               name: "Fluid Dynamics",
               // biome-ignore lint/style/useNamingConvention: Web App Manifest spec requires snake_case keys
               short_name: "FluidDynamics",
-              description: "A SceneryStack simulation: Fluid Dynamics",
+              description,
               categories: ["education", "science"],
               // biome-ignore lint/style/useNamingConvention: Web App Manifest spec requires snake_case keys
               theme_color: "#1a1a2e",

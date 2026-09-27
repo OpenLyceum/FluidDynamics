@@ -438,8 +438,8 @@ that outlives the model.
 | `tests/ObstacleGeometry.test.ts` | handle math: angle wrap, focal cap, NACA mirror |
 | `tests/memory-leak.test.ts` | WeakRef dispose regression for both models |
 | `tests/FluidDynamicsConstants.test.ts` | the namespace registration lists every exported constant |
-| `tests/fuzz/engine.spec.ts` | **the solver itself**, in a real browser |
-| `tests/fuzz/toolbox.spec.ts` | take-out drag, drop-to-return, click-to-park |
+| `tests/browser/engine.spec.ts` | **the solver itself**, in a real browser |
+| `tests/browser/toolbox.spec.ts` | take-out drag, drop-to-return, click-to-park |
 | `tests/fuzz/fuzz.spec.ts` | joist `?fuzz` and `?fuzzBoard` smoke, both with `&ea` |
 
 `fuzz.spec.ts` runs the keyboard fuzz as well as the pointer fuzz, and that is
@@ -452,7 +452,7 @@ passed the whole time that was broken.
 registered object is not reachable from the module's exports, so comparing it
 against the file's `export const`s means reading both out of the text.
 
-`tests/fuzz/engine.spec.ts` is the interesting one. The fluid state is
+`tests/browser/engine.spec.ts` is the interesting one. The fluid state is
 unreachable from Vitest, so it drives the real engine through
 `tests/harness/engine.html` (transpiled on the fly by the Vite dev server), runs
 real compute passes, and reads frames back. It checks that dye is carried

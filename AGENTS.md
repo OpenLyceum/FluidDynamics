@@ -83,7 +83,7 @@ requires no runtime file fetches, and the PWA's `globPatterns` does not include
 
 **WebGPU canvas presentation does not work in headless Chromium under WSL2** —
 the device is lost the moment any canvas is presented, with or without compute.
-Compute and offscreen rendering work fine. `tests/fuzz/engine.spec.ts` therefore
+Compute and offscreen rendering work fine. `tests/browser/engine.spec.ts` therefore
 runs the engine with `presentToCanvas: false` and reads pixels back.
 
 **A toolbox icon's `PressListener` must be `attach: false`.** The take-out
@@ -93,7 +93,7 @@ gesture forwards the icon's live press to the tool's own drag listener
 callback, and no listener will press a pointer another has attached. An
 attaching icon listener therefore turns the hand-off into a silent no-op: the
 tool appears at the pointer, correctly positioned, and then never moves. Nothing
-throws and nothing logs — `tests/fuzz/toolbox.spec.ts` exists because a test
+throws and nothing logs — `tests/browser/toolbox.spec.ts` exists because a test
 that only checked whether the tool became visible passed the whole time.
 
 **Spreading a `FLAT_*` bundle does not survive naming one of its keys.** The
@@ -174,8 +174,8 @@ Fleet-standard Vitest layout under root `tests/`, plus a Playwright suite:
 | `tests/memory-leak.test.ts` | WeakRef dispose regression (both models) |
 | `tests/FluidDynamicsConstants.test.ts` | Every exported constant is in the namespace registration |
 | `tests/harness/engine.html` | Page that loads the real engine for the test below |
-| `tests/fuzz/engine.spec.ts` | **The solver**, in a real browser, verified by pixel readback |
-| `tests/fuzz/toolbox.spec.ts` | Take-out drag, drop-to-return, click-to-park — needs no WebGPU |
+| `tests/browser/engine.spec.ts` | **The solver**, in a real browser, verified by pixel readback |
+| `tests/browser/toolbox.spec.ts` | Take-out drag, drop-to-return, click-to-park — needs no WebGPU |
 | `tests/fuzz/fuzz.spec.ts` | joist `?fuzz` smoke |
 
 `engine.spec.ts` needs a WebGPU adapter and skips without one; it takes several
@@ -197,7 +197,8 @@ npm run lint && npm run check && npm run build && npm test
 | `npm run check` | TypeScript (`tsc --noEmit` + scripts + tests projects) |
 | `npm run lint` / `npm run fix` | Biome check / auto-fix |
 | `npm test` | Vitest unit tests |
-| `npm run test:fuzz` | Playwright: engine integration + fuzz smoke |
+| `npm run test:fuzz` | Playwright fuzz smoke (pointer + keyboard) |
+| `npm run test:browser` | Playwright: WebGPU engine integration + toolbox drag tests (`tests/browser/`) |
 | `npm run icons` | Regenerate PWA icons |
 
 ## Query parameters
