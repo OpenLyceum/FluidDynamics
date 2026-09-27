@@ -4,5 +4,5 @@
     "noEmit": true,
     "types": ["node", "vite/client", "vitest/globals", "@webgpu/types"]
   },
-  "include": ["tests"]
+  "include": ["tests", "src/**/*.d.ts"]
 }
