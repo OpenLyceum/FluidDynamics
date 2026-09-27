@@ -10,31 +10,6 @@ import { VitePWA } from "vite-plugin-pwa";
  *  - X-Content-Type-Options: prevent MIME sniffing
  *  - X-Frame-Options: prevent clickjacking (belt-and-suspenders alongside frame-ancestors)
  */
-/**
- * SHA-256 of every inline event handler Scenery puts in the parallel DOM,
- * base64 as CSP wants it.
- *
- * Scenery sets `onclick` on some PDOM primary siblings to suppress the browser's
- * default activation behaviour, and it uses two values: `return false` (the
- * step-forward button, for one) and the empty string. Without these hashes the
- * policy blocks the handler and Chrome logs a CSP error on *every* activation of
- * the control, which buries real errors and fails the `?fuzzBoard&ea` gate. The
- * handlers do nothing observable either way, so the sim always worked; the noise
- * was the problem.
- *
- * Note the directive actually enforced here is `script-src-attr`, which falls
- * back to `script-src` — so these live in `script-src` alongside 'unsafe-hashes'.
- * Without 'unsafe-hashes' the hashes are ignored outright for event handlers.
- *
- * Regenerate with:
- *   printf 'return false' | openssl dgst -sha256 -binary | openssl base64
- *   printf ''             | openssl dgst -sha256 -binary | openssl base64
- */
-const SCENERY_PDOM_HANDLER_HASHES = [
-  "'sha256-GZIcz60Uwd6wT3vaYke/atSr53TehbYAPepOa3d03Vw='", // "return false"
-  "'sha256-47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU='", // ""
-].join(" ");
-
 const securityHeaders: Record<string, string> = {
   "Cross-Origin-Opener-Policy": "same-origin",
   "Cross-Origin-Embedder-Policy": "require-corp",
@@ -43,11 +18,17 @@ const securityHeaders: Record<string, string> = {
     // 'unsafe-eval' is required for SceneryStack query parameter parsing, which
     // builds its schema with Function/eval. Tracked upstream — see the CSP notes
     // in SECURITY.md for when it can be dropped and what to re-audit then.
-    //
-    // 'unsafe-hashes' + the hashes above admit exactly Scenery's two inline
-    // event handlers and nothing else. They do NOT admit inline <script>
-    // blocks; that still requires 'unsafe-inline', which is deliberately absent.
-    `script-src 'self' 'unsafe-eval' 'unsafe-hashes' ${SCENERY_PDOM_HANDLER_HASHES}`,
+    "script-src 'self' 'unsafe-eval'",
+    // Event-handler attributes are governed by script-src-attr, separately from
+    // inline <script>. SceneryStack's ParallelDOM.pdomInputEnabledListener sets an
+    // inline `onclick` on any control whose input it disables (`return false`, then
+    // `""` when re-enabled) — e.g. the time-control step button whenever the clock
+    // starts or stops. 'unsafe-hashes' lets exactly those two handlers through;
+    // anything else still fails. Without it the fuzz suite fails on the CSP console
+    // error. Regenerate: printf 'return false' | openssl dgst -sha256 -binary | base64
+    "script-src-attr 'unsafe-hashes' " +
+      "'sha256-GZIcz60Uwd6wT3vaYke/atSr53TehbYAPepOa3d03Vw=' " +
+      "'sha256-47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU='",
     "worker-src blob: 'self'",
     // Inline styles are set via element.style / cssText throughout the UI layer.
     // Same upstream dependency as 'unsafe-eval' above.

@@ -1,24 +1,32 @@
 /**
- * Optional Playwright fuzz smoke.
+ * Optional Playwright fuzz smoke — template-owned, identical across the fleet.
  *
- * Two runs: the pointer fuzz (`?fuzz`) and the keyboard fuzz (`?fuzzBoard`).
- * Both carry `&ea`, so a failed assertion is a failed test rather than a line
- * nobody reads.
+ * Two runs, each for FUZZ_DURATION seconds:
+ *  - pointer fuzz (`?fuzz`): random mouse/touch input on the display
+ *  - keyboard fuzz (`?fuzzBoard`): random keyboard input through the parallel DOM,
+ *    which the pointer fuzz never touches (e.g. a CSP that blocks Scenery's inline
+ *    `onclick` handlers only shows up here)
  *
- * The keyboard run is not redundant with the pointer one. It is what exercises
- * the parallel DOM — where a CSP that blocks Scenery's inline `onclick`
- * handler shows up as a console error on every button activation, and the
- * pointer fuzz never touches those elements at all.
+ * Both carry `?ea`: without it assertions are silent and the test cannot fail on an
+ * invalid internal state. Sim-specific Playwright tests go in their own
+ * tests/fuzz/*.spec.ts files, not in this one.
  *
  * Usage:
- *   npm run test:fuzz
- *   npm run test:fuzz:quick
+ *   npm run test:fuzz                 # default 30s per run
+ *   npm run test:fuzz:quick           # 10s
+ *   npm run test:fuzz:long            # 300s
+ *   npm run test:fuzz -- 90           # 90s
+ *   npm run test:fuzz -- --duration 90
+ *   FUZZ_DURATION=90 npm run test:fuzz
  *   FUZZ_SEED=12345 npm run test:fuzz
+ *   FUZZ_POINTERS=5 npm run test:fuzz # multitouch
+ *   FUZZ_PORT=5190 npm run test:fuzz  # parallel runs across sims
  */
 
 import { expect, type Page, test } from "@playwright/test";
 
-const FUZZ_DURATION: number = parseInt(process.env["FUZZ_DURATION"] || "15", 10) * 1000;
+const FUZZ_DURATION_SECONDS: number = parseInt(process.env["FUZZ_DURATION"] || "30", 10);
+const FUZZ_DURATION: number = FUZZ_DURATION_SECONDS * 1000;
 const FUZZ_SEED: string = process.env["FUZZ_SEED"] || Math.floor(Math.random() * 1_000_000).toString();
 const FUZZ_RATE: string = process.env["FUZZ_RATE"] || "100";
 const FUZZ_POINTERS: string = process.env["FUZZ_POINTERS"] || "1";
@@ -38,6 +46,7 @@ const FUZZ_MODES: readonly { readonly name: string; readonly query: string }[] =
 test.describe("Fuzz Testing", () => {
   for (const mode of FUZZ_MODES) {
     test(`${mode.name} should run without console errors`, async ({ page }) => {
+      test.setTimeout(FUZZ_DURATION + 120_000);
       await runFuzz(page, `/?${mode.query}&ea&randomSeed=${FUZZ_SEED}`);
     });
   }
@@ -91,12 +100,13 @@ async function runFuzz(page: Page, fuzzUrl: string): Promise<void> {
     }
   }
 
+  // Report the messages themselves (not just a count) so a failure is readable in CI.
   expect(
     errors.map((e) => e.text),
-    `Found ${errors.length} console errors`,
+    `Found ${errors.length} console errors (seed ${FUZZ_SEED}, ${fuzzUrl})`,
   ).toEqual([]);
   expect(
     assertions.map((a) => a.text),
-    `Found ${assertions.length} assertion failures`,
+    `Found ${assertions.length} assertion failures (seed ${FUZZ_SEED}, ${fuzzUrl})`,
   ).toEqual([]);
 }
