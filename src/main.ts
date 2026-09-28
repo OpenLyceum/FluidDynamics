@@ -36,11 +36,13 @@ onReadyToLaunch(() => {
 
   const screens = [
     new IntroScreen(simPreferences, {
+      // The screen name Property updates automatically when the locale changes
       name: stringManager.getScreenNames().introStringProperty,
       tandem: Tandem.ROOT.createTandem("introScreen"),
       backgroundColorProperty: FluidDynamicsColors.backgroundColorProperty,
     }),
     new LabScreen(simPreferences, {
+      // The screen name Property updates automatically when the locale changes
       name: stringManager.getScreenNames().labStringProperty,
       tandem: Tandem.ROOT.createTandem("labScreen"),
       backgroundColorProperty: FluidDynamicsColors.backgroundColorProperty,
