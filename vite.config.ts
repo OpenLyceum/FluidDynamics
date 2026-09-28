@@ -16,9 +16,9 @@ const securityHeaders: Record<string, string> = {
   "Cross-Origin-Embedder-Policy": "require-corp",
   "Content-Security-Policy": [
     "default-src 'self'",
-    // 'unsafe-eval' is required for SceneryStack query parameter parsing, which
-    // builds its schema with Function/eval. Tracked upstream — see the CSP notes
-    // in SECURITY.md for when it can be dropped and what to re-audit then.
+    // TODO(scenerystack): drop 'unsafe-eval' when SceneryStack no longer needs
+    // Function/eval for query-parameter parsing — reopen a CSP audit then.
+    // 'unsafe-eval' is required for SceneryStack query parameter parsing
     "script-src 'self' 'unsafe-eval'",
     // Event-handler attributes are governed by script-src-attr, separately from
     // inline <script>. SceneryStack's ParallelDOM.pdomInputEnabledListener sets an
@@ -31,8 +31,9 @@ const securityHeaders: Record<string, string> = {
       "'sha256-GZIcz60Uwd6wT3vaYke/atSr53TehbYAPepOa3d03Vw=' " +
       "'sha256-47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU='",
     "worker-src blob: 'self'",
-    // Inline styles are set via element.style / cssText throughout the UI layer.
-    // Same upstream dependency as 'unsafe-eval' above.
+    // TODO(scenerystack): drop 'unsafe-inline' when SceneryStack stops setting
+    // element.style / cssText for theming (same CSP revisit as unsafe-eval).
+    // Inline styles are set via element.style / cssText throughout the UI layer
     "style-src 'self' 'unsafe-inline'",
     // data: for icons
     "img-src 'self' data:",
