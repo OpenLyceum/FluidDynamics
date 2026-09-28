@@ -148,16 +148,6 @@ Every control takes its `accessibleName` from the shared `a11y.fluid` string
 group, never a literal. New strings must be added to **all three** locale files;
 `StringManager.ts` enforces key parity at compile time.
 
-## Compliance carve-out
-
-**The solver lives under `src/common/gpu/`, not `src/common/model/`.** Fleet
-convention says the view never integrates physics, but there is no CPU-side fluid
-state to model: velocity, pressure and dye exist only as GPU textures, and none
-of it can be stepped without a `GPUDevice`. So the *parameters* are a model
-(`FluidModel`, no scenery and no GPU imports, fully unit-tested) and the solver
-is a view-side renderer, mirroring `Resonance`'s `WebGLParticleRenderer`.
-`FluidFieldNode` is the only file that touches both.
-
 ## Testing
 
 Fleet-standard Vitest layout under root `tests/`, plus a Playwright suite:
@@ -217,6 +207,14 @@ After `npm run build`, the sim is installable offline via Workbox
 (`dist/manifest.webmanifest`).
 
 ## Compliance carve-outs
+
+**The solver lives under `src/common/gpu/`, not `src/common/model/`.** Fleet
+convention says the view never integrates physics, but there is no CPU-side fluid
+state to model: velocity, pressure and dye exist only as GPU textures, and none
+of it can be stepped without a `GPUDevice`. So the *parameters* are a model
+(`FluidModel`, no scenery and no GPU imports, fully unit-tested) and the solver
+is a view-side renderer, mirroring `Resonance`'s `WebGLParticleRenderer`.
+`FluidFieldNode` is the only file that touches both.
 
 ### `package.json` overrides
 
