@@ -40,9 +40,9 @@ function background(): Rectangle {
  */
 function body(): Circle {
   const rim = new RadialGradient(BODY_X, BODY_Y, BODY_R * 0.6, BODY_X, BODY_Y, BODY_R)
-    .addColorStop(0, "#1a1c29")
-    .addColorStop(0.75, "#1a1c29")
-    .addColorStop(1, "#9ea8bd");
+    .addColorStop(0, FluidDynamicsColors.obstacleBodyColorProperty)
+    .addColorStop(0.75, FluidDynamicsColors.obstacleBodyColorProperty)
+    .addColorStop(1, FluidDynamicsColors.obstacleRimColorProperty);
 
   return new Circle(BODY_R, { centerX: BODY_X, centerY: BODY_Y, fill: rim });
 }

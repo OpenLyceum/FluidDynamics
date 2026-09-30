@@ -136,6 +136,23 @@ const FluidDynamicsColors = {
     default: "#000000",
     projector: "#000000",
   }),
+
+  /**
+   * Flat dark body of the obstacle on the home-screen icons.
+   *
+   * Matches the body colour display.wgsl paints. The shader does not follow the
+   * color profile, so the icon stops stay the same in both profiles too.
+   */
+  obstacleBodyColorProperty: new ProfileColorProperty(FluidDynamicsNamespace, "obstacleBody", {
+    default: "#1a1c29",
+    projector: "#1a1c29",
+  }),
+
+  /** Light rim at the obstacle surface on the home-screen icons, matching display.wgsl. */
+  obstacleRimColorProperty: new ProfileColorProperty(FluidDynamicsNamespace, "obstacleRim", {
+    default: "#9ea8bd",
+    projector: "#9ea8bd",
+  }),
 };
 
 export default FluidDynamicsColors;
