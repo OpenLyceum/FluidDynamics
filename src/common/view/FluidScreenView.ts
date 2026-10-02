@@ -47,6 +47,9 @@ import { ObstacleThicknessHandleNode } from "./ObstacleThicknessHandleNode.js";
 import { ToolboxPanel } from "./ToolboxPanel.js";
 import { WebGPUUnavailableNode } from "./WebGPUUnavailableNode.js";
 
+/** Gap between the bottom of the fluid field and the readout row beneath it, px. */
+const READOUT_ROW_GAP = 14;
+
 type SelfOptions = {
   /** Show viscosity, obstacle, visualization and grid controls (the Lab screen). */
   readonly showFullControls?: boolean;
@@ -163,7 +166,7 @@ export class FluidScreenView extends ScreenView {
     // ── Reynolds number and regime ────────────────────────────────────────────
     const readout = new FlowReadoutNode(model, {
       left: FIELD_VIEW_BOUNDS.minX,
-      top: FIELD_VIEW_BOUNDS.maxY + 14,
+      top: FIELD_VIEW_BOUNDS.maxY + READOUT_ROW_GAP,
     });
     this.addChild(readout);
 
@@ -171,7 +174,7 @@ export class FluidScreenView extends ScreenView {
     // the readout row. Not pickable, so it never intercepts a stray drag.
     const scaleBar = new FluidScaleBarNode(this.fluidFieldNode.modelViewTransform, {
       right: FIELD_VIEW_BOUNDS.maxX,
-      top: FIELD_VIEW_BOUNDS.maxY + 14,
+      top: FIELD_VIEW_BOUNDS.maxY + READOUT_ROW_GAP,
     });
     this.addChild(scaleBar);
 
@@ -272,24 +275,21 @@ export class FluidScreenView extends ScreenView {
     // screen is about), then the obstacle, then the toolbox and any tools out
     // of it, then the controls top to bottom, with the time controls and Reset
     // All last.
-    this.addChild(
-      new Node({
-        pdomOrder: [
-          this.fluidFieldNode,
-          obstacleHandle,
-          sizeAngleHandle,
-          fociHandle,
-          thicknessHandle,
-          toolboxPanel.tapeIconNode,
-          toolboxPanel.rulerIconNode,
-          toolboxPanel.measuringTapeNode,
-          toolboxPanel.rulerNode,
-          ...controlPanel.controlsInOrder,
-          timeControl,
-          resetAllButton,
-        ],
-      }),
-    );
+    // The fluid, the obstacle handles and the measuring tools go under the "Play
+    // Area" heading and the controls under "Control Area", so the screen
+    // reader's structure separates the two.
+    this.pdomPlayAreaNode.pdomOrder = [
+      this.fluidFieldNode,
+      obstacleHandle,
+      sizeAngleHandle,
+      fociHandle,
+      thicknessHandle,
+      toolboxPanel.tapeIconNode,
+      toolboxPanel.rulerIconNode,
+      toolboxPanel.measuringTapeNode,
+      toolboxPanel.rulerNode,
+    ];
+    this.pdomControlAreaNode.pdomOrder = [...controlPanel.controlsInOrder, timeControl, resetAllButton];
 
     this.disposers.push(() => {
       shapeMultilink.dispose();

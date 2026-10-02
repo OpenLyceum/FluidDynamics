@@ -22,7 +22,7 @@
     "fluid": {
       "fieldName": "Canal de fluido",
       "fieldHelpText": "Arrastra dentro del canal para empujar el fluido y añadir colorante.",
-      "fieldDescriptionPattern": "El fluido corre de izquierda a derecha alrededor de un {{shape}} a {{speed}} metros por segundo. El número de Reynolds es de aproximadamente {{reynolds}}, así que la estela es una {{regime}}.",
+      "fieldDescriptionPattern": "El fluido corre de izquierda a derecha {{obstacle}} a {{speed}} metros por segundo. El número de Reynolds es de aproximadamente {{reynolds}}, así que {{wake}}.",
       "flowSpeed": "Velocidad del flujo",
       "flowSpeedHelpText": "Aumenta la velocidad para elevar el número de Reynolds y desestabilizar la estela.",
       "viscosity": "Viscosidad",
@@ -52,7 +52,20 @@
       "toolboxRulerName": "Regla",
       "toolboxRulerHelpText": "Pulsa para sacar la regla de la caja de herramientas o para guardarla. Arrástrala directamente para colocarla.",
       "rulerName": "Regla",
-      "rulerHelpText": "Arrastra la regla para moverla, o usa las flechas. Los números marcan cada 10 centímetros."
+      "rulerHelpText": "Arrastra la regla para moverla, o usa las flechas. Los números marcan cada 10 centímetros.",
+      "obstaclePhrases": {
+        "none": "por un canal vacío",
+        "cylinder": "alrededor de un cilindro",
+        "plate": "alrededor de una placa plana",
+        "airfoil": "alrededor de un perfil alar",
+        "ellipse": "alrededor de una elipse"
+      },
+      "wakePhrases": {
+        "creeping": "el flujo es reptante, sin estela",
+        "steadyWake": "deja una estela estacionaria",
+        "vortexShedding": "la estela desprende vórtices",
+        "turbulent": "la estela es turbulenta"
+      }
     }
   },
   "keyboardHelp": {

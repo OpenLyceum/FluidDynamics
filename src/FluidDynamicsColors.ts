@@ -153,6 +153,15 @@ const FluidDynamicsColors = {
     default: "#9ea8bd",
     projector: "#9ea8bd",
   }),
+
+  /**
+   * Fully transparent fill for the obstacle handles' hit areas. Transparent
+   * rather than invisible: an invisible Node leaves the parallel DOM and can be
+   * neither focused nor hit-tested.
+   */
+  hitAreaColorProperty: new ProfileColorProperty(FluidDynamicsNamespace, "hitArea", {
+    default: "rgba(0,0,0,0)",
+  }),
 };
 
 export default FluidDynamicsColors;

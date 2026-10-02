@@ -27,6 +27,11 @@ import { StringManager } from "../../i18n/StringManager.js";
 import { FluidDynamicsPanel } from "../FluidDynamicsPanel.js";
 import type { GpuUnavailableReason } from "../gpu/webgpuSupport.js";
 
+/** Spacing and margins of the "WebGPU unavailable" message panel, px. */
+const MESSAGE_SPACING = 10;
+const MESSAGE_X_MARGIN = 20;
+const MESSAGE_Y_MARGIN = 16;
+
 export type WebGPUUnavailableNodeOptions = NodeOptions;
 
 export class WebGPUUnavailableNode extends Node {
@@ -88,10 +93,10 @@ export class WebGPUUnavailableNode extends Node {
     const panel = new FluidDynamicsPanel(
       new VBox({
         children: [titleText, messageText],
-        spacing: 10,
+        spacing: MESSAGE_SPACING,
         align: "left",
       }),
-      { xMargin: 20, yMargin: 16 },
+      { xMargin: MESSAGE_X_MARGIN, yMargin: MESSAGE_Y_MARGIN },
     );
     panel.center = fieldBounds.center;
 

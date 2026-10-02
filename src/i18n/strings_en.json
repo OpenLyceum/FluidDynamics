@@ -22,7 +22,7 @@
     "fluid": {
       "fieldName": "Fluid channel",
       "fieldHelpText": "Drag inside the channel to push the fluid and add dye.",
-      "fieldDescriptionPattern": "Fluid flows from left to right past a {{shape}} at {{speed}} metres per second. The Reynolds number is about {{reynolds}}, so the wake is a {{regime}}.",
+      "fieldDescriptionPattern": "Fluid flows from left to right {{obstacle}} at {{speed}} metres per second. The Reynolds number is about {{reynolds}}, so {{wake}}.",
       "flowSpeed": "Flow speed",
       "flowSpeedHelpText": "Raise the speed to increase the Reynolds number and destabilise the wake.",
       "viscosity": "Viscosity",
@@ -52,7 +52,20 @@
       "toolboxRulerName": "Ruler",
       "toolboxRulerHelpText": "Press to take the ruler out of the toolbox or to put it back. Drag it out to place it directly.",
       "rulerName": "Ruler",
-      "rulerHelpText": "Drag to move the ruler, or use the arrow keys. Numbers mark every 10 centimetres."
+      "rulerHelpText": "Drag to move the ruler, or use the arrow keys. Numbers mark every 10 centimetres.",
+      "obstaclePhrases": {
+        "none": "through an empty channel",
+        "cylinder": "past a cylinder",
+        "plate": "past a flat plate",
+        "airfoil": "past an airfoil",
+        "ellipse": "past an ellipse"
+      },
+      "wakePhrases": {
+        "creeping": "the flow is creeping, with no wake",
+        "steadyWake": "it leaves a steady wake",
+        "vortexShedding": "the wake sheds vortices",
+        "turbulent": "the wake is turbulent"
+      }
     }
   },
   "keyboardHelp": {

@@ -36,7 +36,7 @@ export function createKnobHitArea(
   const knob = new Circle(KNOB_HIT_RADIUS_PX, {
     // Transparent rather than invisible: an invisible Node is removed from the
     // parallel DOM and can be neither focused nor hit-tested.
-    fill: "rgba(0,0,0,0)",
+    fill: FluidDynamicsColors.hitAreaColorProperty,
     cursor: "pointer",
     tagName: "div",
     focusable: true,

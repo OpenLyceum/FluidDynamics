@@ -14,9 +14,10 @@ import { DerivedProperty, type TReadOnlyProperty } from "scenerystack/axon";
 import { toFixed } from "scenerystack/dot";
 import { StringUtils } from "scenerystack/phetcommon";
 import { StringManager } from "../../i18n/StringManager.js";
+import type { FlowRegime } from "../model/FlowRegime.js";
 import type { FluidModel } from "../model/FluidModel.js";
 import type { ObstacleShape } from "../model/ObstacleShape.js";
-import { createRegimeStringProperty, formatReynolds } from "./FlowReadoutNode.js";
+import { formatReynolds } from "./FlowReadoutNode.js";
 
 /**
  * Builds the description Property.
@@ -29,45 +30,43 @@ import { createRegimeStringProperty, formatReynolds } from "./FlowReadoutNode.js
  * have no dispose() of their own to do it in.
  */
 export function createFluidDescriptionProperty(model: FluidModel): TReadOnlyProperty<string> {
-  const strings = StringManager.getInstance().getFluidStrings();
   const a11y = StringManager.getInstance().getFluidA11yStrings();
-  const regimeStringProperty = createRegimeStringProperty(model.flowRegimeProperty);
 
-  // Written out rather than looked up by key, so a new shape fails to compile
-  // until it has a name to be described by.
-  const shapeLabels: Record<ObstacleShape, TReadOnlyProperty<string>> = {
-    none: strings.shapes.noneStringProperty,
-    cylinder: strings.shapes.cylinderStringProperty,
-    plate: strings.shapes.plateStringProperty,
-    airfoil: strings.shapes.airfoilStringProperty,
-    ellipse: strings.shapes.ellipseStringProperty,
+  // Whole phrases per shape and per regime, rather than a label slotted into an
+  // English sentence: each language needs its own article and gender ("past an
+  // airfoil", "autour d'une ellipse"), and "None" is a channel with no obstacle.
+  // Written out rather than looked up by key, so a new shape or regime fails to
+  // compile until it can be described.
+  const obstaclePhrases: Record<ObstacleShape, TReadOnlyProperty<string>> = {
+    none: a11y.obstaclePhrases.noneStringProperty,
+    cylinder: a11y.obstaclePhrases.cylinderStringProperty,
+    plate: a11y.obstaclePhrases.plateStringProperty,
+    airfoil: a11y.obstaclePhrases.airfoilStringProperty,
+    ellipse: a11y.obstaclePhrases.ellipseStringProperty,
+  };
+  const wakePhrases: Record<FlowRegime, TReadOnlyProperty<string>> = {
+    creeping: a11y.wakePhrases.creepingStringProperty,
+    steadyWake: a11y.wakePhrases.steadyWakeStringProperty,
+    vortexShedding: a11y.wakePhrases.vortexSheddingStringProperty,
+    turbulent: a11y.wakePhrases.turbulentStringProperty,
   };
 
-  const descriptionProperty = DerivedProperty.deriveAny(
+  return DerivedProperty.deriveAny(
     [
       model.obstacleShapeProperty,
       model.flowSpeedProperty,
       model.reynoldsNumberProperty,
-      regimeStringProperty,
+      model.flowRegimeProperty,
       a11y.fieldDescriptionPatternStringProperty,
-      strings.shapes.noneStringProperty,
-      strings.shapes.cylinderStringProperty,
-      strings.shapes.plateStringProperty,
-      strings.shapes.airfoilStringProperty,
-      strings.shapes.ellipseStringProperty,
+      ...Object.values(obstaclePhrases),
+      ...Object.values(wakePhrases),
     ],
     () =>
       StringUtils.fillIn(a11y.fieldDescriptionPatternStringProperty.value, {
-        shape: shapeLabels[model.obstacleShapeProperty.value].value.toLocaleLowerCase(),
+        obstacle: obstaclePhrases[model.obstacleShapeProperty.value].value,
         speed: toFixed(model.flowSpeedProperty.value, 2),
         reynolds: formatReynolds(model.reynoldsNumberProperty.value),
-        regime: regimeStringProperty.value.toLocaleLowerCase(),
+        wake: wakePhrases[model.flowRegimeProperty.value].value,
       }),
   );
-
-  // The regime Property is an implementation detail of this one, so it is
-  // disposed with it rather than being handed back for the caller to track.
-  descriptionProperty.disposeEmitter.addListener(() => regimeStringProperty.dispose());
-
-  return descriptionProperty;
 }

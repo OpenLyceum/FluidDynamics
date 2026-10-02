@@ -11,6 +11,7 @@ import { describe, expect, it } from "vitest";
 import { FluidModel } from "../src/common/model/FluidModel.js";
 import { TimeModel } from "../src/common/TimeModel.js";
 import { IntroModel } from "../src/intro/model/IntroModel.js";
+import { LabModel } from "../src/lab/model/LabModel.js";
 import { FluidDynamicsPreferencesModel } from "../src/preferences/FluidDynamicsPreferencesModel.js";
 import { describeDisposalLeaks, forceGC } from "./helpers/memoryLeak.js";
 
@@ -99,7 +100,12 @@ describe("Memory leak regression", () => {
   });
 });
 
+// One preferences model shared by every LabModel, as in the sim: a LabModel that
+// failed to unlink from it would stay reachable and fail the check.
+const SHARED_PREFERENCES = new FluidDynamicsPreferencesModel();
+
 describeDisposalLeaks([
   { name: "TimeModel", create: () => new TimeModel(), idempotentDispose: true },
   { name: "FluidModel", create: () => new FluidModel() },
+  { name: "LabModel", create: () => new LabModel(SHARED_PREFERENCES) },
 ]);

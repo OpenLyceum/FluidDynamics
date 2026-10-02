@@ -49,6 +49,13 @@ import { obstacleShapeCode } from "../model/ObstacleShape.js";
 import { visualizationModeCode } from "../model/VisualizationMode.js";
 import { timeSpeedMultiplier } from "../TimeModel.js";
 
+/**
+ * The speed colour ramp saturates at this multiple of the inflow speed, but never
+ * below MIN_VELOCITY_SCALE (m/s), so it stays readable across the speed slider.
+ */
+const VELOCITY_SCALE_FACTOR = 2;
+const MIN_VELOCITY_SCALE = 0.2;
+
 export type FluidFieldNodeOptions = CanvasNodeOptions;
 
 export class FluidFieldNode extends CanvasNode {
@@ -88,12 +95,14 @@ export class FluidFieldNode extends CanvasNode {
     const options = optionize<FluidFieldNodeOptions, EmptySelfOptions, CanvasNodeOptions>()(
       {
         canvasBounds: fieldBounds,
-        // A screen-reader user cannot see the dye, so the field carries a name,
-        // a hint about the drag interaction, and (supplied by the caller) a live
-        // paragraph describing what the flow is currently doing.
+        // A screen-reader user cannot see the dye, so the field carries a heading,
+        // a hint about the pointer interaction, and (supplied by the caller) a
+        // live paragraph describing what the flow is currently doing. It is not
+        // focusable: dragging the fluid has no keyboard equivalent, and a tab
+        // stop that does nothing is worse than none. The description is read in
+        // the play area like any other text.
         tagName: "div",
-        focusable: true,
-        accessibleName: a11y.fieldNameStringProperty,
+        accessibleHeading: a11y.fieldNameStringProperty,
         accessibleHelpText: a11y.fieldHelpTextStringProperty,
       },
       providedOptions,
@@ -320,7 +329,7 @@ export class FluidFieldNode extends CanvasNode {
       // The colour ramps saturate at a small multiple of the inflow speed, so
       // they stay informative across the whole speed slider instead of washing
       // out at the top or reading as black at the bottom.
-      velocityScale: Math.max(model.flowSpeedProperty.value * 2, 0.2),
+      velocityScale: Math.max(model.flowSpeedProperty.value * VELOCITY_SCALE_FACTOR, MIN_VELOCITY_SCALE),
       time: this.elapsedTime,
       pressureIterations: model.pressureIterationsProperty.value,
     };

@@ -116,7 +116,7 @@ Fleet-standard Vitest layout under root `tests/`, plus a Playwright suite:
 | `tests/FluidGridSpec.test.ts` | Dispatch arithmetic, square cells, uv mapping |
 | `tests/FlowRegime.test.ts` | Reynolds thresholds and boundaries |
 | `tests/FluidModel.test.ts` | Derived Re, reset, reachable regimes, shader codes |
-| `tests/memory-leak.test.ts` | WeakRef dispose regression (both models) |
+| `tests/memory-leak.test.ts` | WeakRef dispose regression: `TimeModel`, `FluidModel`, `IntroModel` and `LabModel` (the latter on a shared preferences model) |
 | `tests/FluidDynamicsConstants.test.ts` | Every exported constant is in the namespace registration |
 | `tests/harness/engine.html` | Page that loads the real engine for the test below |
 | `tests/browser/engine.spec.ts` | **The solver**, in a real browser, verified by pixel readback |

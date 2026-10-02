@@ -22,7 +22,7 @@
     "fluid": {
       "fieldName": "Canal de fluide",
       "fieldHelpText": "Faites glisser dans le canal pour pousser le fluide et ajouter du colorant.",
-      "fieldDescriptionPattern": "Le fluide s'écoule de gauche à droite autour d'un {{shape}} à {{speed}} mètres par seconde. Le nombre de Reynolds vaut environ {{reynolds}}, le sillage est donc un {{regime}}.",
+      "fieldDescriptionPattern": "Le fluide s'écoule de gauche à droite {{obstacle}} à {{speed}} mètres par seconde. Le nombre de Reynolds vaut environ {{reynolds}}, donc {{wake}}.",
       "flowSpeed": "Vitesse d'écoulement",
       "flowSpeedHelpText": "Augmentez la vitesse pour élever le nombre de Reynolds et déstabiliser le sillage.",
       "viscosity": "Viscosité",
@@ -52,7 +52,20 @@
       "toolboxRulerName": "Règle",
       "toolboxRulerHelpText": "Appuyez pour sortir la règle de la boîte à outils ou pour la ranger. Faites-la glisser directement pour la placer.",
       "rulerName": "Règle",
-      "rulerHelpText": "Faites glisser la règle pour la déplacer, ou utilisez les flèches. Les numéros marquent tous les 10 centimètres."
+      "rulerHelpText": "Faites glisser la règle pour la déplacer, ou utilisez les flèches. Les numéros marquent tous les 10 centimètres.",
+      "obstaclePhrases": {
+        "none": "dans un canal vide",
+        "cylinder": "autour d'un cylindre",
+        "plate": "autour d'une plaque plane",
+        "airfoil": "autour d'un profil d'aile",
+        "ellipse": "autour d'une ellipse"
+      },
+      "wakePhrases": {
+        "creeping": "l'écoulement est rampant, sans sillage",
+        "steadyWake": "il laisse un sillage stationnaire",
+        "vortexShedding": "le sillage détache des tourbillons",
+        "turbulent": "le sillage est turbulent"
+      }
     }
   },
   "keyboardHelp": {

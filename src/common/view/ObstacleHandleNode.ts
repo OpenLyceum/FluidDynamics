@@ -18,6 +18,7 @@ import type { Vector2Property } from "scenerystack/dot";
 import { type EmptySelfOptions, optionize } from "scenerystack/phet-core";
 import type { ModelViewTransform2 } from "scenerystack/phetcommon";
 import { Circle, type CircleOptions, DragListener, KeyboardDragListener } from "scenerystack/scenery";
+import FluidDynamicsColors from "../../FluidDynamicsColors.js";
 import { OBSTACLE_KEYBOARD_SPEED_MPS, obstacleDragBounds } from "../../FluidDynamicsConstants.js";
 import { StringManager } from "../../i18n/StringManager.js";
 
@@ -38,7 +39,7 @@ export class ObstacleHandleNode extends Circle {
       {
         // Transparent rather than invisible: an invisible Node is removed from
         // the parallel DOM and can be neither focused nor hit-tested.
-        fill: "rgba(0,0,0,0)",
+        fill: FluidDynamicsColors.hitAreaColorProperty,
         cursor: "pointer",
         tagName: "div",
         focusable: true,
