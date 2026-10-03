@@ -143,7 +143,7 @@ export class FluidScreenView extends ScreenView {
     const shapeListener = (shape: ObstacleShape, reason: GpuUnavailableReason | null): void => {
       const hasField = reason === null;
       const wanted: readonly [Node, boolean][] = [
-        [obstacleHandle, hasField],
+        [obstacleHandle, hasField && shape !== "none"],
         [sizeAngleHandle, hasField && shape !== "none"],
         [fociHandle, hasField && shape === "ellipse"],
         [thicknessHandle, hasField && shape === "airfoil"],

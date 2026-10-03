@@ -53,8 +53,8 @@ compute shaders. Each frame advances the velocity field through:
 1. **Advection** — (u·∇)u, by semi-Lagrangian backtrace with bilinear
    interpolation, followed by a MacCormack predictor–corrector that cancels most
    of the backtrace's numerical diffusion. A bound-preserving limiter keeps the
-   corrected value inside the predictor's local range, so the step is unconditionally
-   stable at any timestep and no more dissipative than the scheme it replaces.
+   corrected value inside the original departure stencil's range, so the step is
+   unconditionally stable at any timestep and no more dissipative than the scheme it replaces.
    The backtrace is a midpoint (RK2) step: an Euler trace follows the velocity at
    the arrival point for the whole step and so cuts the corner on curved paths,
    which in a vortex means the vortex slowly drifts toward its own centre.

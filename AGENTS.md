@@ -120,6 +120,8 @@ Fleet-standard Vitest layout under root `tests/`, plus a Playwright suite:
 | `tests/FluidDynamicsConstants.test.ts` | Every exported constant is in the namespace registration |
 | `tests/harness/engine.html` | Page that loads the real engine for the test below |
 | `tests/browser/engine.spec.ts` | **The solver**, in a real browser, verified by pixel readback |
+| `tests/harness/advection.ts` | Production advection kernels against exact linear-profile transport |
+| `tests/browser/obstacle.spec.ts` | Removing/restoring the Lab obstacle updates handle visibility and keyboard traversal |
 | `tests/browser/toolbox.spec.ts` | Take-out drag, drop-to-return, click-to-park — needs no WebGPU |
 | `tests/fuzz/fuzz.spec.ts` | joist `?fuzz` smoke |
 
