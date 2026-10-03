@@ -129,6 +129,15 @@ Velocity and dye advection are both MacCormack predictor–correctors, so each
 keeps a scratch texture (`advectTemp`, `dyeTemp`) for the predictor's φ_A: the
 backward trace writes it, the corrector reads it and writes the limited result
 into the next field. Each is one allocation reused for the life of the grid.
+The limiter reads its departure stencil from the original φⁿ (`priorTex`),
+because φ_A has already been transported. Using φ_A at the departure point
+would shift the bounds again and make a multiple-cell trace move too far.
+
+Paused frames compare the inputs that need compute work, ignoring the display
+mode, colour-map scale and advancing-clock fields. Switching the displayed
+quantity therefore preserves the velocity field exactly. Moving the body or
+painting dye still runs the paused compute path, and reset or a new grid still
+initializes its mask and inlet on the first paused frame.
 
 The `advect` layout has a fifth binding, `priorTex`, that the velocity kernels do
 not strictly need: for velocity the field being carried and the field doing the
@@ -439,6 +448,8 @@ that outlives the model.
 | `tests/memory-leak.test.ts` | WeakRef dispose regression for both models |
 | `tests/FluidDynamicsConstants.test.ts` | the namespace registration lists every exported constant |
 | `tests/browser/engine.spec.ts` | **the solver itself**, in a real browser |
+| `tests/harness/advection.ts` | exact linear-profile transport through the production dye and velocity kernels |
+| `tests/browser/obstacle.spec.ts` | missing/restored obstacle handles and keyboard traversal |
 | `tests/browser/toolbox.spec.ts` | take-out drag, drop-to-return, click-to-park |
 | `tests/fuzz/fuzz.spec.ts` | joist `?fuzz` and `?fuzzBoard` smoke, both with `&ea` |
 

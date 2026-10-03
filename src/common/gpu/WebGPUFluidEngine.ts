@@ -74,7 +74,13 @@ import {
   VELOCITY_FORMAT,
 } from "./bindLayouts.js";
 import type { FluidGridSpec } from "./FluidGridSpec.js";
-import { FluidUniforms, type FluidUniformValues, UNIFORM_BUFFER_SIZE, UNIFORM_FLOAT_COUNT } from "./FluidUniforms.js";
+import {
+  FluidUniforms,
+  type FluidUniformValues,
+  UNIFORM_BUFFER_SIZE,
+  UNIFORM_FLOAT_COUNT,
+  UNIFORM_OFFSETS,
+} from "./FluidUniforms.js";
 import { advanceInflowRamp, type InflowRampState, isInflowSettling } from "./inflowRamp.js";
 import advectWGSL from "./shaders/advect.wgsl?raw";
 import commonWGSL from "./shaders/common.wgsl?raw";
@@ -277,8 +283,8 @@ export class WebGPUFluidEngine {
   private wereTracersVisible = false;
 
   /**
-   * The uniforms the previous frame ran with, so a paused frame can tell that
-   * nothing has changed and skip the solver. See the idle guard in step().
+   * The previous frame's uniforms, so a paused frame can distinguish changes
+   * that need compute work from display-only changes. See the idle guard in step().
    */
   private readonly lastPacked = new Float32Array(UNIFORM_FLOAT_COUNT);
 
@@ -426,7 +432,7 @@ export class WebGPUFluidEngine {
       },
       this.grid,
     );
-    const isRepeatOfLastFrame = this.hasStepped && floatsEqual(packed, this.lastPacked);
+    const arePausedInputsUnchanged = this.hasStepped && pausedInputsEqual(packed, this.lastPacked);
     this.lastPacked.set(packed);
     this.hasStepped = true;
     this.device.queue.writeBuffer(this.uniformBuffer, 0, packed);
@@ -438,20 +444,12 @@ export class WebGPUFluidEngine {
     const sweeps = diffusionSweeps(diffusionAlpha(values.viscosity, dt, this.grid.cellSize));
     this.markMask(values);
 
-    // A paused frame whose every input matches the frame before it cannot change
-    // the fluid, so it gets the display pass alone. The paused path still has to
-    // re-render every frame — switching visualization or dragging the body must
-    // update the picture — but re-running the solver for it costs a full frame's
-    // ~40 dispatches, thirty of them the pressure solve, at up to 2048 × 1024.
-    //
-    // The guard has to be this strict. Skipping only the projection would leave
-    // gradientSubtract subtracting a stale pressure gradient from an
-    // already-projected field, every frame; and the solver still has real work
-    // at dt = 0 whenever an input *did* change — forces re-imposes the boundary
-    // and zeroes the cells a dragged body just covered, and dye.wgsl paints
-    // under the pointer. Comparing the packed uniforms catches all of those,
-    // because every one of them is a uniform.
-    const isIdle = dt <= 0 && isRepeatOfLastFrame && !this.isMaskStale;
+    // Entering pause and changing display settings must preserve the field.
+    // A zero-dt projection still changes velocity, so display-only changes
+    // skip the whole solver rather than merely its advection and diffusion.
+    // Geometry changes and pointer painting still need the paused compute path;
+    // newly allocated fields also need their first mask and inlet injection.
+    const isIdle = dt <= 0 && arePausedInputsUnchanged && !this.isMaskStale;
     if (!isIdle) {
       this.recordCompute(encoder, pressureIterations, sweeps, values.tracersVisible);
     }
@@ -1296,14 +1294,26 @@ function createPipelines(device: GPUDevice, canvasFormat: GPUTextureFormat): Pip
 }
 
 /**
- * Element-wise equality of two same-length uniform buffers.
+ * Whether a paused frame needs compute work, comparing same-length uniforms.
  *
  * Exact comparison is what is wanted here: these are the same values packed by
  * the same code from the same Properties, so anything that moved at all moved
  * because the learner moved it.
  */
-function floatsEqual(a: Float32Array, b: Float32Array): boolean {
+function pausedInputsEqual(a: Float32Array, b: Float32Array): boolean {
   for (let i = 0; i < a.length; i++) {
+    // dt changes when entering pause. Display mode and scale only affect the
+    // render pass; time and tracer release advance only during positive dt.
+    // Tracer visibility clears its buffer independently in advanceTracers().
+    if (
+      i === UNIFORM_OFFSETS.dt ||
+      i === UNIFORM_OFFSETS.visualization ||
+      i === UNIFORM_OFFSETS.velocityScale ||
+      i === UNIFORM_OFFSETS.time ||
+      i === UNIFORM_OFFSETS.tracerEmitBatch
+    ) {
+      continue;
+    }
     if (a[i] !== b[i]) {
       return false;
     }

@@ -2,7 +2,7 @@
 <!--
   Engine integration harness.
 
-  Loaded by tests/fuzz/engine.spec.ts through the Vite dev server, which
+  Loaded by tests/browser/engine.spec.ts through the Vite dev server, which
   transpiles the TypeScript imports below on the fly. It exists because the
   solver's correctness lives on the GPU and cannot be reached from Vitest: the
   only way to check that the fluid actually behaves like a fluid is to run real
@@ -20,6 +20,7 @@
       import { FluidGridSpec } from "/src/common/gpu/FluidGridSpec.ts";
       import { WebGPUFluidEngine } from "/src/common/gpu/WebGPUFluidEngine.ts";
       import { acquireFluidDevice } from "/src/common/gpu/webgpuSupport.ts";
+      import { advectProfile } from "/tests/harness/advection.ts";
 
       const defaults = {
         dyeColorA: [0.22, 0.74, 0.97, 1],
@@ -57,6 +58,7 @@
       let engine = null;
 
       window.harness = {
+        advectProfile,
         async start(resolution = "standard") {
           const acquisition = await acquireFluidDevice();
           if (!acquisition.available) {

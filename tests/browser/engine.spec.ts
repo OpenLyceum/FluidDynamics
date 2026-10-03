@@ -101,6 +101,7 @@ class Frame {
 const TRACER_BRIGHTNESS = 230;
 
 type Harness = {
+  advectProfile: (quantity: "dye" | "velocity", displacementCells: number) => Promise<number[]>;
   start: (resolution?: string) => Promise<{ ok: boolean; reason?: string; format?: string }>;
   run: (steps: number, dt: number, overrides?: Record<string, unknown>) => { running: boolean; time: number };
   pixels: () => Promise<number[]>;
@@ -138,6 +139,53 @@ test.describe("WebGPU fluid engine", () => {
   // viscosity (the viscous solve schedules its own sweeps), so this is budgeted
   // for the stiff end of the range rather than tuned to the wire.
   test.setTimeout(360_000);
+
+  test("MacCormack transport moves linear dye and velocity profiles at the prescribed speed", async ({ page }) => {
+    const format = await startEngine(page);
+    test.skip(format === null, "no WebGPU adapter available");
+    if (format === null) {
+      return;
+    }
+
+    // A uniform axial speed of 1 m/s translates x/512 by exactly U·dt/h
+    // cells. Check both the dye and a transverse velocity component, since
+    // both use the corrector. Multiple-cell traces expose a limiter that
+    // accidentally bounds against the already-transported predictor.
+    for (const quantity of ["dye", "velocity"] as const) {
+      for (const displacementCells of [0.5, 2, 2.5]) {
+        const actual = await page.evaluate(([q, d]) => window.harness.advectProfile(q, d), [
+          quantity,
+          displacementCells,
+        ] as const);
+        const expected = [64, 96, 128, 160, 192].map((x) => (x - displacementCells) / 512);
+        expect(actual, `${quantity} transported by ${displacementCells} cells`).toEqual(expected);
+      }
+    }
+  });
+
+  test("pausing and changing display settings preserve the velocity field", async ({ page }) => {
+    const format = await startEngine(page);
+    test.skip(format === null, "no WebGPU adapter available");
+    if (format === null) {
+      return;
+    }
+
+    const result = await page.evaluate(async () => {
+      const { time } = window.harness.run(30, 1 / 60);
+      const before = (await window.harness.velocity()).uv;
+      let maxDifference = 0;
+      for (const visualization of [0, 1, 2, 3, 0]) {
+        window.harness.run(1, 0, { time, visualization, velocityScale: 3, tracersVisible: true });
+        const after = (await window.harness.velocity()).uv;
+        for (let i = 0; i < before.length; i++) {
+          maxDifference = Math.max(maxDifference, Math.abs((before[i] ?? 0) - (after[i] ?? 0)));
+        }
+      }
+      return { maxDifference, running: window.harness.run(1, 0, { time }).running };
+    });
+    expect(result.running).toBe(true);
+    expect(result.maxDifference, "display-only paused frames preserve every velocity sample").toBe(0);
+  });
 
   test("dye is carried downstream and around a cylinder", async ({ page }) => {
     const format = await startEngine(page);

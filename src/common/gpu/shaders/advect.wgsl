@@ -120,11 +120,11 @@ fn advectDye(@builtin(global_invocation_id) id: vec3<u32>) {
 //   φ_A   = backward advect of φⁿ                       (the predictor, above)
 //   φ_D   = forward sample of φ_A at x + u·dt            (the reverse trace)
 //   φ_raw = φ_A + ½(φⁿ(x) − φ_D)                         (anti-diffusive blend)
-//   φ     = clamp φ_raw to [min, max] of φ_A around the departure point
+//   φ     = clamp φ_raw to [min, max] of φⁿ around the departure point
 //
 // The clamp is what makes the scheme unconditionally stable: without it the
 // anti-diffusive term can overshoot and, over many steps, blow up. With it the
-// corrected value never leaves the range the predictor already produced, so the
+// corrected value never leaves the range of the original departure stencil, so the
 // whole step is no less stable than plain semi-Lagrangian.
 
 fn maccormack(cell: vec2<u32>) -> vec4<f32> {
@@ -136,7 +136,7 @@ fn maccormack(cell: vec2<u32>) -> vec4<f32> {
 
   let raw = phiA + 0.5 * (phiN - phiD);
 
-  // Bound the corrected value to the range of φ_A over the four texels whose
+  // Bound the corrected value to the range of φⁿ over the four texels whose
   // bilinear interpolation produced the predictor's value at the departure
   // point. A value outside this range is an overshoot the limiter removes.
   //
@@ -146,10 +146,12 @@ fn maccormack(cell: vec2<u32>) -> vec4<f32> {
   // far half of its cell, and the limiter bounds the correction against a
   // neighbourhood the predictor never looked at.
   let base = clampCell(vec2<i32>(floor(backtrace(uv) * u.gridSize - vec2<f32>(0.5, 0.5))), u);
-  let p00 = textureLoad(sourceTex, clampCell(base + vec2<i32>(0, 0), u), 0);
-  let p10 = textureLoad(sourceTex, clampCell(base + vec2<i32>(1, 0), u), 0);
-  let p01 = textureLoad(sourceTex, clampCell(base + vec2<i32>(0, 1), u), 0);
-  let p11 = textureLoad(sourceTex, clampCell(base + vec2<i32>(1, 1), u), 0);
+  // sourceTex holds φ_A, which has already moved. Bounding against it at the
+  // departure point transports the stencil twice when the trace spans cells.
+  let p00 = textureLoad(priorTex, clampCell(base + vec2<i32>(0, 0), u), 0);
+  let p10 = textureLoad(priorTex, clampCell(base + vec2<i32>(1, 0), u), 0);
+  let p01 = textureLoad(priorTex, clampCell(base + vec2<i32>(0, 1), u), 0);
+  let p11 = textureLoad(priorTex, clampCell(base + vec2<i32>(1, 1), u), 0);
 
   return clamp(raw, min(min(p00, p10), min(p01, p11)), max(max(p00, p10), max(p01, p11)));
 }
