@@ -101,7 +101,8 @@ function declarations(source: string): Declaration[] {
 
 describe("shader binding declarations", () => {
   it("covers every shader file with a layout", () => {
-    expect(Object.keys(SHADER_SOURCES).sort()).toEqual(Object.keys(SHADER_LAYOUTS).sort());
+    const byName = (a: string, b: string) => a.localeCompare(b);
+    expect(Object.keys(SHADER_SOURCES).sort(byName)).toEqual(Object.keys(SHADER_LAYOUTS).sort(byName));
   });
 
   it("finds the declarations at all — every kernel binds at least a uniform and an output", () => {
