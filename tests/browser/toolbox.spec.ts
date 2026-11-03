@@ -46,6 +46,27 @@ function tapeBase(page: Page): Locator {
   return page.locator('div[role="application"]').first();
 }
 
+/** Resolves after two animation frames: scenery has processed queued input and repainted. */
+async function nextFrames(page: Page): Promise<void> {
+  await page.evaluate(
+    () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
+  );
+}
+
+/** Waits until the element's box is the same on two reads a couple of frames apart. */
+async function waitForStableBox(page: Page, locator: Locator): Promise<void> {
+  let previous = JSON.stringify(await locator.boundingBox());
+  await expect
+    .poll(async () => {
+      await nextFrames(page);
+      const current = JSON.stringify(await locator.boundingBox());
+      const stable = current === previous && current !== "null";
+      previous = current;
+      return stable;
+    })
+    .toBe(true);
+}
+
 /** Moves in steps, because a single jump is one event and a drag needs a stream. */
 async function drag(page: Page, from: Point, to: Point): Promise<void> {
   await page.mouse.move(from.x, from.y);
@@ -54,7 +75,7 @@ async function drag(page: Page, from: Point, to: Point): Promise<void> {
     await page.mouse.move(from.x + ((to.x - from.x) * step) / 10, from.y + ((to.y - from.y) * step) / 10);
   }
   await page.mouse.up();
-  await page.waitForTimeout(200);
+  await nextFrames(page);
 }
 
 async function boundsOf(locator: Locator): Promise<{ x: number; y: number; width: number; height: number }> {
@@ -70,8 +91,9 @@ test.describe("toolbox", () => {
     await page.goto("/?screens=1");
     await page.waitForSelector("#sim");
     // The gestures below need the icons laid out, not merely the DOM up.
-    await expect(page.getByRole("button", { name: "Ruler", exact: true })).toBeVisible();
-    await page.waitForTimeout(1000);
+    const ruler = page.getByRole("button", { name: "Ruler", exact: true });
+    await expect(ruler).toBeVisible();
+    await waitForStableBox(page, ruler);
   });
 
   test("a ruler dragged out of the toolbox follows the pointer", async ({ page }) => {
