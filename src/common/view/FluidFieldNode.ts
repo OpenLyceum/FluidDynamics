@@ -270,32 +270,40 @@ export class FluidFieldNode extends CanvasNode {
    * nothing and begins rendering once this resolves.
    */
   private startDevice(): void {
-    acquireFluidDevice().then((acquisition) => {
-      // The screen may have been disposed while the request was in flight.
-      if (this.isFieldDisposed) {
-        return;
-      }
-      if (!acquisition.available) {
-        this.reasonProperty.value = acquisition.reason;
-        return;
-      }
-      try {
-        this.engine = new WebGPUFluidEngine(
-          this.gpuCanvas,
-          acquisition.device,
-          FluidGridSpec.forResolution(this.model.gridResolutionProperty.value),
-          () => {
-            this.reasonProperty.value = "noDevice";
-          },
-        );
-      } catch {
-        // The engine's constructor reports through onFailure() before it
-        // throws, so the learner already has the "not available" message and
-        // reasonProperty is already set. Catching keeps the throw from
-        // escaping as an unhandled promise rejection, which is noise rather
-        // than information.
-      }
-    });
+    acquireFluidDevice()
+      .then((acquisition) => {
+        // The screen may have been disposed while the request was in flight.
+        if (this.isFieldDisposed) {
+          return;
+        }
+        if (!acquisition.available) {
+          this.reasonProperty.value = acquisition.reason;
+          return;
+        }
+        try {
+          this.engine = new WebGPUFluidEngine(
+            this.gpuCanvas,
+            acquisition.device,
+            FluidGridSpec.forResolution(this.model.gridResolutionProperty.value),
+            () => {
+              this.reasonProperty.value = "noDevice";
+            },
+          );
+        } catch {
+          // The engine's constructor reports through onFailure() before it
+          // throws, so the learner already has the "not available" message and
+          // reasonProperty is already set. Catching keeps the throw from
+          // escaping as an unhandled promise rejection, which is noise rather
+          // than information.
+        }
+      })
+      .catch(() => {
+        // requestDevice() reports failures as { available: false }, so this only
+        // fires on an unexpected bug; show the same "not available" message.
+        if (!this.isFieldDisposed) {
+          this.reasonProperty.value = "noDevice";
+        }
+      });
   }
 
   /** Snapshot of the model, converted into the units the shaders expect. */
