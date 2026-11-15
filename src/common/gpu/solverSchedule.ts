@@ -58,6 +58,7 @@ export function diffusionAlpha(viscosity: number, dt: number, cellSize: number):
  *
  * ω → 1 as α → 0 (the system becomes the identity and Gauss–Seidel is already
  * exact) and → 2 as α → ∞, staying inside the convergent range at every α.
+ * @internal Exported for unit tests; not part of the application API.
  */
 export function diffusionOmega(alpha: number): number {
   const diagonal = 1 + 4 * alpha;
@@ -68,6 +69,7 @@ export function diffusionOmega(alpha: number): number {
  * Error remaining after one red-black SOR iteration (one red sweep plus one
  * black sweep) of the diffusion solve. This is ω − 1, the asymptotic rate of SOR
  * at its optimal factor.
+ * @internal Exported for unit tests; not part of the application API.
  */
 export function diffusionConvergenceRate(alpha: number): number {
   return diffusionOmega(alpha) - 1;

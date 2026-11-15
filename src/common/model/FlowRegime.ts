@@ -13,7 +13,10 @@
 
 import { RE_SEPARATION, RE_SHEDDING_ONSET, RE_TURBULENT_ONSET } from "../../FluidDynamicsConstants.js";
 
-/** Flow regimes, ordered by increasing Reynolds number. */
+/**
+ * Flow regimes, ordered by increasing Reynolds number.
+ * @internal Exported for unit tests; not part of the application API.
+ */
 export const FLOW_REGIMES = ["creeping", "steadyWake", "vortexShedding", "turbulent"] as const;
 
 export type FlowRegime = (typeof FLOW_REGIMES)[number];

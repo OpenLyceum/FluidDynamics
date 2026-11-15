@@ -13,6 +13,7 @@
  * WebGPUFluidEngine.ts. The codes are the contract either way.)
  *
  * `erasableSyntaxOnly` rules out a TS enum, so this is an as-const union.
+ * @internal Exported for unit tests; not part of the application API.
  */
 
 export const OBSTACLE_SHAPES = ["none", "cylinder", "plate", "airfoil", "ellipse"] as const;

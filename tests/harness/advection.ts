@@ -5,6 +5,7 @@ import advectWGSL from "../../src/common/gpu/shaders/advect.wgsl?raw";
 import commonWGSL from "../../src/common/gpu/shaders/common.wgsl?raw";
 import { acquireFluidDevice } from "../../src/common/gpu/webgpuSupport.js";
 
+/** @public */
 export async function advectProfile(quantity: "dye" | "velocity", displacementCells: number): Promise<number[]> {
   const acquisition = await acquireFluidDevice();
   if (!acquisition.available) {

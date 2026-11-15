@@ -272,6 +272,7 @@ export const OBSTACLE_CENTER_DEFAULT = new Vector2(0.5, 0.5);
  * Clear of the inflow strip on the left (a body overlapping it would fight the
  * boundary condition that forces the velocity there), clear of the outflow on
  * the right, and clear of both walls so there is always room for a wake.
+ * @internal Exported for unit tests; not part of the application API.
  */
 export const OBSTACLE_DRAG_BOUNDS_M = new Bounds2(0.25, 0.25, 1.2, 0.75);
 

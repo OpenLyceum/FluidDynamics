@@ -158,6 +158,7 @@ export const BIND_LAYOUTS = {
 
 export type BindLayoutName = keyof typeof BIND_LAYOUTS;
 
+/** @internal Exported for unit tests; not part of the application API. */
 export const BIND_LAYOUT_NAMES = Object.keys(BIND_LAYOUTS) as BindLayoutName[];
 
 /**
@@ -167,6 +168,7 @@ export const BIND_LAYOUT_NAMES = Object.keys(BIND_LAYOUTS) as BindLayoutName[];
  * which is what makes a typo in a layout a compile error — but it also means the
  * records cannot be indexed by a computed number. This is the one place that
  * widening happens.
+ * @internal Exported for unit tests; not part of the application API.
  */
 export function layoutBinding(name: BindLayoutName, binding: number): BindingSpec | undefined {
   return (BIND_LAYOUTS[name].bindings as Readonly<Record<number, BindingSpec>>)[binding];
@@ -175,6 +177,7 @@ export function layoutBinding(name: BindLayoutName, binding: number): BindingSpe
 /**
  * Which layout each shader's pipelines are created with. Every shader file must
  * appear here, so a new one cannot quietly escape the binding check.
+ * @internal Exported for unit tests; not part of the application API.
  */
 export const SHADER_LAYOUTS = {
   "mask.wgsl": "mask",
