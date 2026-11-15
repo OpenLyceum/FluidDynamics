@@ -37,6 +37,7 @@
     "icons": "node scripts/generate-icons.ts",
     "clean": "rm -rf dist",
     "prepare": "git rev-parse --is-inside-work-tree >/dev/null 2>&1 && git config core.hooksPath .githooks || true",
+    "knip": "knip",
     "test:browser": "playwright test --project=chromium tests/browser"
   },
   "dependencies": {
@@ -48,6 +49,7 @@
     "@types/node": "^26.6.6",
     "@webgpu/types": "^0.1.74",
     "happy-dom": "^21.0.4",
+    "knip": "^6.45.1",
     "png-to-ico": "^3.0.2",
     "sharp": "^0.35.5",
     "typescript": "^7.0.2",

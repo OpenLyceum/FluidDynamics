@@ -71,14 +71,8 @@ export class FlowReadoutNode extends HBox {
 
 /**
  * The localized name of the current regime.
- *
- * Exported because the screen summaries need the same words the readout shows —
- * a screen-reader user and a sighted user should be told the flow is doing the
- * same thing.
  */
-export function createRegimeStringProperty(
-  flowRegimeProperty: TReadOnlyProperty<FlowRegime>,
-): TReadOnlyProperty<string> {
+function createRegimeStringProperty(flowRegimeProperty: TReadOnlyProperty<FlowRegime>): TReadOnlyProperty<string> {
   const regimes = StringManager.getInstance().getFluidStrings().regimes;
 
   // Written out rather than looked up by key, so a new regime fails to compile

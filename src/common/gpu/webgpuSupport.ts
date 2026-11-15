@@ -51,17 +51,6 @@ export const deviceLostEmitter = new TinyEmitter();
 let acquisitionPromise: Promise<GpuAcquisition> | null = null;
 
 /**
- * Synchronous, side-effect-free check for whether WebGPU could plausibly work.
- *
- * Useful for deciding what to build before any await resolves — a false result
- * is definitive, a true result still needs {@link acquireFluidDevice} to confirm
- * that an adapter and device are actually obtainable.
- */
-export function isWebGPUPlausible(): boolean {
-  return getGPU() !== undefined;
-}
-
-/**
  * Acquires (or returns the cached) GPUDevice for the fluid solver.
  *
  * Never rejects: every failure path resolves to `{ available: false, reason }`.
@@ -75,7 +64,7 @@ export function acquireFluidDevice(): Promise<GpuAcquisition> {
  * Discards the cached acquisition so the next call retries from scratch.
  * Called on device loss; also keeps unit tests independent of each other.
  */
-export function resetFluidDeviceCache(): void {
+function resetFluidDeviceCache(): void {
   acquisitionPromise = null;
 }
 

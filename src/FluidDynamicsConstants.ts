@@ -282,7 +282,7 @@ export const OBSTACLE_DRAG_BOUNDS_M = new Bounds2(0.25, 0.25, 1.2, 0.75);
  * allowed keeps exactly the region it always had, and only larger bodies feel
  * the tightening.
  */
-export const OBSTACLE_CLEARANCE_M = 0.075;
+const OBSTACLE_CLEARANCE_M = 0.075;
 
 /**
  * The region the obstacle's centre may occupy for a body of the given
@@ -669,7 +669,6 @@ FluidDynamicsNamespace.register("FluidDynamicsConstants", {
   ANGLE_OF_ATTACK_DEFAULT,
   OBSTACLE_CENTER_DEFAULT,
   OBSTACLE_DRAG_BOUNDS_M,
-  OBSTACLE_CLEARANCE_M,
   obstacleDragBounds,
   OBSTACLE_KEYBOARD_SPEED_MPS,
   OBSTACLE_FOCAL_MAX_FRACTION,
