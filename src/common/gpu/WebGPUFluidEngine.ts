@@ -247,7 +247,7 @@ export class WebGPUFluidEngine {
     thickness: Number.NaN,
   };
 
-  private pipelines!: Pipelines;
+  private readonly pipelines!: Pipelines;
   private bindGroups!: BindGroups;
 
   /**
@@ -257,8 +257,8 @@ export class WebGPUFluidEngine {
    * finished frame can be read back for testing, and presentation becomes a
    * single command that can be skipped where it is unsupported.
    */
-  private displayTexture!: GPUTexture;
-  private displayView!: GPUTextureView;
+  private readonly displayTexture!: GPUTexture;
+  private readonly displayView!: GPUTextureView;
 
   /** Staging buffer for readDisplayPixels, allocated on first use. */
   private readbackBuffer: GPUBuffer | null = null;

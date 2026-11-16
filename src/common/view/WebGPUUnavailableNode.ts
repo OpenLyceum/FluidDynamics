@@ -61,7 +61,8 @@ export class WebGPUUnavailableNode extends Node {
         webgpuStrings.deviceLostStringProperty,
       ],
       () => {
-        switch (reasonProperty.value) {
+        const reason: GpuUnavailableReason | null = reasonProperty.value;
+        switch (reason) {
           case "noWebGPU":
             return webgpuStrings.noWebGPUStringProperty.value;
           case "noAdapter":
