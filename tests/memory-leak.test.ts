@@ -7,9 +7,23 @@
  * a block scope) so local strong references die when the helper returns.
  */
 
+import { NumberProperty, Property } from "scenerystack/axon";
+import { Bounds2, Vector2, Vector2Property } from "scenerystack/dot";
+import { ModelViewTransform2 } from "scenerystack/phetcommon";
+import { Node } from "scenerystack/scenery";
 import { describe, expect, it } from "vitest";
+import type { GpuUnavailableReason } from "../src/common/gpu/webgpuSupport.js";
 import { FluidModel } from "../src/common/model/FluidModel.js";
 import { TimeModel } from "../src/common/TimeModel.js";
+import { FlowReadoutNode } from "../src/common/view/FlowReadoutNode.js";
+import { FluidControlPanel } from "../src/common/view/FluidControlPanel.js";
+import { FluidRulerNode } from "../src/common/view/FluidRulerNode.js";
+import { FluidScaleBarNode } from "../src/common/view/FluidScaleBarNode.js";
+import { ObstacleFociHandleNode } from "../src/common/view/ObstacleFociHandleNode.js";
+import { ObstacleHandleNode } from "../src/common/view/ObstacleHandleNode.js";
+import { ObstacleSizeAngleHandleNode } from "../src/common/view/ObstacleSizeAngleHandleNode.js";
+import { ObstacleThicknessHandleNode } from "../src/common/view/ObstacleThicknessHandleNode.js";
+import { WebGPUUnavailableNode } from "../src/common/view/WebGPUUnavailableNode.js";
 import { IntroModel } from "../src/intro/model/IntroModel.js";
 import { LabModel } from "../src/lab/model/LabModel.js";
 import { FluidDynamicsPreferencesModel } from "../src/preferences/FluidDynamicsPreferencesModel.js";
@@ -103,9 +117,100 @@ describe("Memory leak regression", () => {
 // One preferences model shared by every LabModel, as in the sim: a LabModel that
 // failed to unlink from it would stay reachable and fail the check.
 const SHARED_PREFERENCES = new FluidDynamicsPreferencesModel();
+const fluidForViews = new FluidModel();
+const listParent = new Node();
+const modelViewTransform = ModelViewTransform2.createSinglePointScaleInvertedYMapping(
+  Vector2.ZERO,
+  new Vector2(100, 100),
+  200,
+);
+const obstacleCenterProperty = new Vector2Property(new Vector2(0.5, 0.25));
+const obstacleDiameterProperty = new NumberProperty(0.2);
+const obstacleFocalRadiusProperty = new NumberProperty(0.05);
+const obstacleAngleProperty = new NumberProperty(0);
+const obstacleThicknessProperty = new NumberProperty(0.05);
+const rulerCenterProperty = new Vector2Property(new Vector2(0.3, 0.1));
+const screenViewBounds = new Bounds2(0, 0, 768, 504);
+const gpuReasonProperty = new Property<GpuUnavailableReason | null>("noWebGPU");
+const fieldBounds = new Bounds2(0, 0, 350, 280);
 
 describeDisposalLeaks([
   { name: "TimeModel", create: () => new TimeModel(), idempotentDispose: true },
   { name: "FluidModel", create: () => new FluidModel() },
   { name: "LabModel", create: () => new LabModel(SHARED_PREFERENCES) },
+  {
+    name: "FlowReadoutNode",
+    create: () => new FlowReadoutNode(fluidForViews),
+    keepAlive: () => [fluidForViews],
+  },
+  {
+    name: "FluidControlPanel",
+    create: () => new FluidControlPanel(fluidForViews, listParent),
+    keepAlive: () => [fluidForViews, listParent],
+  },
+  {
+    name: "FluidScaleBarNode",
+    create: () => new FluidScaleBarNode(modelViewTransform),
+    keepAlive: () => [modelViewTransform],
+  },
+  {
+    name: "FluidRulerNode",
+    create: () => new FluidRulerNode(rulerCenterProperty, modelViewTransform, screenViewBounds),
+    keepAlive: () => [rulerCenterProperty, modelViewTransform],
+  },
+  {
+    name: "ObstacleHandleNode",
+    create: () => new ObstacleHandleNode(obstacleCenterProperty, obstacleDiameterProperty, modelViewTransform),
+    keepAlive: () => [obstacleCenterProperty, obstacleDiameterProperty],
+  },
+  {
+    name: "ObstacleFociHandleNode",
+    create: () =>
+      new ObstacleFociHandleNode(
+        obstacleCenterProperty,
+        obstacleDiameterProperty,
+        obstacleFocalRadiusProperty,
+        obstacleAngleProperty,
+        modelViewTransform,
+      ),
+    keepAlive: () => [
+      obstacleCenterProperty,
+      obstacleDiameterProperty,
+      obstacleFocalRadiusProperty,
+      obstacleAngleProperty,
+    ],
+  },
+  {
+    name: "ObstacleSizeAngleHandleNode",
+    create: () =>
+      new ObstacleSizeAngleHandleNode(
+        obstacleCenterProperty,
+        obstacleDiameterProperty,
+        obstacleAngleProperty,
+        modelViewTransform,
+      ),
+    keepAlive: () => [obstacleCenterProperty, obstacleDiameterProperty, obstacleAngleProperty],
+  },
+  {
+    name: "ObstacleThicknessHandleNode",
+    create: () =>
+      new ObstacleThicknessHandleNode(
+        obstacleCenterProperty,
+        obstacleDiameterProperty,
+        obstacleThicknessProperty,
+        obstacleAngleProperty,
+        modelViewTransform,
+      ),
+    keepAlive: () => [
+      obstacleCenterProperty,
+      obstacleDiameterProperty,
+      obstacleThicknessProperty,
+      obstacleAngleProperty,
+    ],
+  },
+  {
+    name: "WebGPUUnavailableNode",
+    create: () => new WebGPUUnavailableNode(gpuReasonProperty, fieldBounds),
+    keepAlive: () => [gpuReasonProperty],
+  },
 ]);

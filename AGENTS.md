@@ -82,6 +82,9 @@ group, never a literal. New strings must be added to **all three** locale files;
 
 ## Compliance carve-outs
 
+- `memory-leak:FluidFieldNode`: WebGPU engine / GPU device acquisition; needs a real adapter and ScreenView step loop.
+- `memory-leak:ToolboxPanel`: ScreenView-coupled tool take-out (globalToViewPoint, sibling tool nodes, drag forwarding).
+
 **The solver lives under `src/common/gpu/`, not `src/common/model/`.** Fleet
 convention says the view never integrates physics, but there is no CPU-side fluid
 state to model: velocity, pressure and dye exist only as GPU textures, and none
