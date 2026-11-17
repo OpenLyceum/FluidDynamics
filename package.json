@@ -51,7 +51,6 @@
     "@playwright/test": "^1.65.0",
     "@swc/core": "^1.15.3",
     "@types/node": "^26.6.6",
-    "@webgpu/types": "^0.1.74",
     "dependency-cruiser": "^18.7.2",
     "happy-dom": "^21.0.4",
     "knip": "^6.45.1",
@@ -60,7 +59,8 @@
     "typescript": "^7.0.2",
     "vite": "^8.3.8",
     "vite-plugin-pwa": "^2.0.0",
-    "vitest": "^5.1.0"
+    "vitest": "^5.1.0",
+    "@webgpu/types": "^0.1.74"
   },
   "engines": {
     "node": ">=26"
