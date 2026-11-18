@@ -95,6 +95,7 @@ group, never a literal. New strings must be added to **all three** locale files;
 ## Compliance carve-outs
 
 - `memory-leak:FluidFieldNode`: WebGPU engine / GPU device acquisition; needs a real adapter and ScreenView step loop.
+- `memory-leak:WebGPUFluidEngine`: needs a real `GPUDevice` and a WebGPU canvas context, neither of which exists under Vitest/happy-dom. `FluidFieldNode` (itself carved out) builds and disposes it; `tests/browser/engine.spec.ts` exercises it on a real adapter.
 - `memory-leak:ToolboxPanel`: ScreenView-coupled tool take-out (globalToViewPoint, sibling tool nodes, drag forwarding).
 
 **The solver lives under `src/common/gpu/`, not `src/common/model/`.** Fleet
