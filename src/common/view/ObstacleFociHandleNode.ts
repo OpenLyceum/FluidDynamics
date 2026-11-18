@@ -83,6 +83,8 @@ export class ObstacleFociHandleNode extends Node {
       angleOfAttackProperty.value = wrapAngleOfAttackDeg(180 - pointerAngleDeg);
     };
 
+    // Pointer-only: the arrow keys already move the foci through createArrowKeyListener
+    // (ObstacleHandleKeyboard HotkeyData). A RichDragListener would bind them twice.
     const upstreamDragListener = new DragListener({
       targetNode: upstreamKnob,
       drag: (event) => {

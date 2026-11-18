@@ -77,6 +77,8 @@ export class ObstacleSizeAngleHandleNode extends Node {
       angleOfAttackProperty.value = wrapAngleOfAttackDeg(180 - pointerAngleDeg);
     };
 
+    // Pointer-only: the arrow keys already change size and angle through createArrowKeyListener
+    // (ObstacleHandleKeyboard HotkeyData). A RichDragListener would bind them twice.
     const dragListener = new DragListener({
       targetNode: knob,
       drag: (event) => {
