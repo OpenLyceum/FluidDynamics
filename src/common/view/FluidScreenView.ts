@@ -35,7 +35,7 @@ import {
 import type { GpuUnavailableReason } from "../gpu/webgpuSupport.js";
 import type { FluidModel } from "../model/FluidModel.js";
 import type { ObstacleShape } from "../model/ObstacleShape.js";
-import { TIME_SPEEDS, type TimeModel } from "../TimeModel.js";
+import type { TimeModel } from "../TimeModel.js";
 import { FlowReadoutNode } from "./FlowReadoutNode.js";
 import { FluidControlPanel } from "./FluidControlPanel.js";
 import { FluidFieldNode } from "./FluidFieldNode.js";
@@ -193,7 +193,7 @@ export class FluidScreenView extends ScreenView {
 
     const timeControl = new TimeControlNode(timer.isPlayingProperty, {
       timeSpeedProperty: timer.timeSpeedProperty,
-      timeSpeeds: TIME_SPEEDS,
+      timeSpeeds: [...timer.timeSpeeds],
       ...TIME_CONTROL_SPEED_RADIO_OPTIONS,
       playPauseStepButtonOptions: {
         ...FLAT_PLAY_PAUSE_STEP_BUTTON_OPTIONS,
@@ -208,7 +208,7 @@ export class FluidScreenView extends ScreenView {
             // timer.step(), which ignores dt while paused — and paused is the
             // only state this button is reachable in. Without this the sim
             // clock and the solver would drift apart by one frame per press.
-            timer.stepOnce(STEP_FORWARD_DT);
+            timer.advance(STEP_FORWARD_DT * timer.speedMultiplier);
             this.fluidFieldNode.stepOnce(STEP_FORWARD_DT);
           },
         },

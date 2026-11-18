@@ -16,10 +16,10 @@ test("no obstacle removes its handle from keyboard interaction and restores it w
   await page.route("**/src/lab/model/LabModel.ts", async (route) => {
     const response = await route.fetch();
     const source = await response.text();
-    expect(source).toContain("new TimeModel(true)");
+    expect(source).toContain("initiallyPlaying: true");
     await route.fulfill({
       response,
-      body: source.replace("new TimeModel(true)", "new TimeModel(false)"),
+      body: source.replace("initiallyPlaying: true", "initiallyPlaying: false"),
     });
   });
   // Like the engine harness, exercise WebGPU without canvas presentation:

@@ -39,6 +39,7 @@ import {
   MAX_PHYSICS_DT,
   MAX_SUBSTEPS_PER_FRAME,
   POINTER_RADIUS_M,
+  TIME_SPEED_MULTIPLIERS,
 } from "../../FluidDynamicsConstants.js";
 import { StringManager } from "../../i18n/StringManager.js";
 import { FluidGridSpec } from "../gpu/FluidGridSpec.js";
@@ -47,7 +48,6 @@ import { acquireFluidDevice, deviceLostEmitter, type GpuUnavailableReason } from
 import type { FluidModel } from "../model/FluidModel.js";
 import { obstacleShapeCode } from "../model/ObstacleShape.js";
 import { visualizationModeCode } from "../model/VisualizationMode.js";
-import { timeSpeedMultiplier } from "../TimeModel.js";
 
 /**
  * The speed colour ramp saturates at this multiple of the inflow speed, but never
@@ -165,7 +165,7 @@ export class FluidFieldNode extends CanvasNode {
     if (this.isPlayingProperty.value) {
       // Playback speed scales dt before substepping, so slow motion runs the
       // same stable solver with smaller steps and fast runs more of them.
-      this.advanceSolver(dt * timeSpeedMultiplier(this.timeSpeedProperty.value));
+      this.advanceSolver(dt * (TIME_SPEED_MULTIPLIERS.get(this.timeSpeedProperty.value) ?? 1));
     } else {
       // Paused: still re-render, so switching visualization mode or dragging the
       // obstacle updates the picture instead of freezing on a stale frame.
@@ -187,7 +187,7 @@ export class FluidFieldNode extends CanvasNode {
   public stepOnce(dt: number): void {
     // Substeps like update(), so a fast-speed step is not silently clamped back
     // to a single MAX_PHYSICS_DT step.
-    this.advanceSolver(dt * timeSpeedMultiplier(this.timeSpeedProperty.value));
+    this.advanceSolver(dt * (TIME_SPEED_MULTIPLIERS.get(this.timeSpeedProperty.value) ?? 1));
     this.invalidatePaint();
   }
 

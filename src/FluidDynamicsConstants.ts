@@ -16,6 +16,7 @@
  */
 
 import { Bounds2, Dimension2, Range, Vector2 } from "scenerystack/dot";
+import { TimeSpeed } from "scenerystack/scenery-phet";
 import FluidDynamicsNamespace from "./FluidDynamicsNamespace.js";
 
 // ── Layout / chrome (screen pixels) ───────────────────────────────────────────
@@ -191,6 +192,13 @@ export const MAX_SUBSTEPS_PER_FRAME = 3;
  * stability allows, this is what one press of the button should mean.
  */
 export const STEP_FORWARD_DT = 1 / 60;
+
+/** Selectable playback speeds in radio-group display order → simulation seconds per wall-clock second. */
+export const TIME_SPEED_MULTIPLIERS: ReadonlyMap<TimeSpeed, number> = new Map([
+  [TimeSpeed.SLOW, 0.25],
+  [TimeSpeed.NORMAL, 1],
+  [TimeSpeed.FAST, 2],
+]);
 
 // ── Flow parameters (SI units) ────────────────────────────────────────────────
 
@@ -621,6 +629,7 @@ export const RE_TURBULENT_ONSET = 200;
 // when the shaping handles landed.
 
 FluidDynamicsNamespace.register("FluidDynamicsConstants", {
+  TIME_SPEED_MULTIPLIERS,
   SCREEN_VIEW_MARGIN,
   PANEL_CORNER_RADIUS,
   FIELD_VIEW_BOUNDS,

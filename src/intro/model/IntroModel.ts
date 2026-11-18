@@ -14,6 +14,7 @@
 import type { TModel } from "scenerystack/joist";
 import { FluidModel } from "../../common/model/FluidModel.js";
 import { TimeModel } from "../../common/TimeModel.js";
+import { TIME_SPEED_MULTIPLIERS } from "../../FluidDynamicsConstants.js";
 import type { FluidDynamicsPreferencesModel } from "../../preferences/FluidDynamicsPreferencesModel.js";
 
 export class IntroModel implements TModel {
@@ -21,7 +22,7 @@ export class IntroModel implements TModel {
   public readonly fluid = new FluidModel();
 
   /** Play/pause and elapsed time. Starts playing — a paused fluid shows nothing. */
-  public readonly timer = new TimeModel(true);
+  public readonly timer = new TimeModel({ initiallyPlaying: true, timeSpeedMultipliers: TIME_SPEED_MULTIPLIERS });
 
   public constructor(preferences: FluidDynamicsPreferencesModel) {
     // Solver accuracy, vortex detail, dye fade and grid resolution are

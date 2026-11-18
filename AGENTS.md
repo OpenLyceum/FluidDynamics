@@ -47,9 +47,11 @@ the same in both profiles (the knob rim, the ruler icon). Profile-invariant is a
 decision recorded there, not a reason to inline a hex.
 
 `TimeModel` is composed into each screen model (never subclassed) and bound to
-`TimeControlNode` via `isPlayingProperty`. Its `step()` ignores `dt` while
-paused, so the step-forward button calls `stepOnce()` instead — routing that
-button through `step()` advances the solver and not the clock.
+`TimeControlNode` via `isPlayingProperty` and `timeSpeedProperty` (speeds and
+multipliers: `TIME_SPEED_MULTIPLIERS` in `FluidDynamicsConstants.ts`). Its `step()`
+ignores `dt` while paused, so the step-forward button calls
+`timer.advance(dt * timer.speedMultiplier)` instead — routing that button through
+`step()` advances the solver and not the clock.
 
 ## Model
 

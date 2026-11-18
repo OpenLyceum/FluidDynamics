@@ -9,7 +9,12 @@
 
 import { TimeSpeed } from "scenerystack/scenery-phet";
 import { describe, expect, it } from "vitest";
-import { TimeModel, timeSpeedMultiplier } from "../src/common/TimeModel.js";
+import { TimeModel } from "../src/common/TimeModel.js";
+import { TIME_SPEED_MULTIPLIERS } from "../src/FluidDynamicsConstants.js";
+
+const speed = (timeSpeed: TimeSpeed): number => TIME_SPEED_MULTIPLIERS.get(timeSpeed) ?? 1;
+const fluidTimer = (): TimeModel =>
+  new TimeModel({ initiallyPlaying: true, timeSpeedMultipliers: TIME_SPEED_MULTIPLIERS });
 
 describe("TimeModel", () => {
   it("starts paused at time 0 by default", () => {
@@ -20,7 +25,7 @@ describe("TimeModel", () => {
   });
 
   it("can start playing when constructed with initiallyPlaying", () => {
-    const model = new TimeModel(true);
+    const model = new TimeModel({ initiallyPlaying: true });
     expect(model.isPlayingProperty.value).toBe(true);
     model.dispose();
   });
@@ -33,7 +38,7 @@ describe("TimeModel", () => {
   });
 
   it("accumulates time while playing", () => {
-    const model = new TimeModel(true);
+    const model = new TimeModel({ initiallyPlaying: true });
     model.step(0.5);
     model.step(0.25);
     expect(model.timeProperty.value).toBeCloseTo(0.75);
@@ -51,7 +56,7 @@ describe("TimeModel", () => {
   });
 
   it("defaults to Normal speed, which advances time one-to-one", () => {
-    const model = new TimeModel(true);
+    const model = new TimeModel({ initiallyPlaying: true });
     expect(model.timeSpeedProperty.value).toBe(TimeSpeed.NORMAL);
     model.step(1);
     expect(model.timeProperty.value).toBe(1);
@@ -59,23 +64,21 @@ describe("TimeModel", () => {
   });
 
   it("scales elapsed time by the playback speed while playing", () => {
-    const model = new TimeModel(true);
+    const model = fluidTimer();
 
     model.timeSpeedProperty.value = TimeSpeed.SLOW;
     model.step(1);
-    expect(model.timeProperty.value).toBeCloseTo(timeSpeedMultiplier(TimeSpeed.SLOW));
+    expect(model.timeProperty.value).toBeCloseTo(speed(TimeSpeed.SLOW));
 
     model.timeSpeedProperty.value = TimeSpeed.FAST;
     model.step(1);
-    expect(model.timeProperty.value).toBeCloseTo(
-      timeSpeedMultiplier(TimeSpeed.SLOW) + timeSpeedMultiplier(TimeSpeed.FAST),
-    );
+    expect(model.timeProperty.value).toBeCloseTo(speed(TimeSpeed.SLOW) + speed(TimeSpeed.FAST));
 
     model.dispose();
   });
 
   it("does not advance while paused, at any speed", () => {
-    const model = new TimeModel();
+    const model = new TimeModel({ timeSpeedMultipliers: TIME_SPEED_MULTIPLIERS });
     model.timeSpeedProperty.value = TimeSpeed.FAST;
     model.step(1);
     expect(model.timeProperty.value).toBe(0);
@@ -83,7 +86,7 @@ describe("TimeModel", () => {
   });
 
   it("reset() restores Normal speed", () => {
-    const model = new TimeModel(true);
+    const model = fluidTimer();
     model.timeSpeedProperty.value = TimeSpeed.SLOW;
     model.reset();
     expect(model.timeSpeedProperty.value).toBe(TimeSpeed.NORMAL);
