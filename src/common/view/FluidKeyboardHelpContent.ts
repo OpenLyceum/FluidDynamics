@@ -11,9 +11,9 @@
  * pull and no thickness — so it documents resizing alone.
  *
  * ── Where the rows come from ──────────────────────────────────────────────────
- * The obstacle rows are built with KeyboardHelpSectionRow.fromHotkeyData from
- * the same HotkeyData the handles' listeners are built from (see
- * ObstacleHandleKeyboard.ts). The keys shown here are therefore the keys the sim
+ * The stirring and obstacle rows are built with KeyboardHelpSectionRow.fromHotkeyData
+ * from the same HotkeyData the field's and handles' listeners are built from (see
+ * FluidFieldKeyboard.ts and ObstacleHandleKeyboard.ts). The keys shown here are therefore the keys the sim
  * actually responds to, by construction — the icons are generated from the key
  * strings rather than drawn by hand.
  *
@@ -34,6 +34,7 @@ import {
   TwoColumnKeyboardHelpContent,
 } from "scenerystack/scenery-phet";
 import { StringManager } from "../../i18n/StringManager.js";
+import { FIELD_HOTKEY_DATA } from "./FluidFieldKeyboard.js";
 import { HANDLE_HOTKEY_DATA } from "./ObstacleHandleKeyboard.js";
 
 type SelfOptions = {
@@ -76,6 +77,20 @@ export class FluidKeyboardHelpContent extends TwoColumnKeyboardHelpContent {
 
     const obstacleSection = new KeyboardHelpSection(strings.obstacleHeadingStringProperty, obstacleRows);
 
+    // Stirring is the field's own focus stop, on both screens. The gentle row gets
+    // the same compact Shift + arrows icon as "smaller steps" above, for the same reason.
+    const fieldSection = new KeyboardHelpSection(strings.fieldHeadingStringProperty, [
+      KeyboardHelpSectionRow.fromHotkeyData(FIELD_HOTKEY_DATA.stir, {
+        icon: KeyboardHelpIconFactory.arrowKeysRowIcon(),
+      }),
+      KeyboardHelpSectionRow.fromHotkeyData(FIELD_HOTKEY_DATA.stirGently, {
+        icon: KeyboardHelpIconFactory.shiftPlusIcon(KeyboardHelpIconFactory.arrowKeysRowIcon()),
+      }),
+      KeyboardHelpSectionRow.fromHotkeyData(FIELD_HOTKEY_DATA.releaseDye, {
+        icon: KeyboardHelpIconFactory.spaceOrEnter(),
+      }),
+    ]);
+
     // Covers the obstacle's own translation handle and both measurement tools —
     // all three are KeyboardDragListeners with the same arrow/shift behaviour.
     const moveSection = new MoveDraggableItemsKeyboardHelpSection({
@@ -91,7 +106,7 @@ export class FluidKeyboardHelpContent extends TwoColumnKeyboardHelpContent {
       KeyboardHelpSectionRow.labelWithIcon(strings.toolTakeOutStringProperty, KeyboardHelpIconFactory.spaceOrEnter()),
     ]);
 
-    const leftColumn = [obstacleSection, moveSection, toolboxSection];
+    const leftColumn = [fieldSection, obstacleSection, moveSection, toolboxSection];
     const rightColumn = [
       sliderSection,
       ...(providedOptions.showComboBoxControls ? [new ComboBoxKeyboardHelpSection()] : []),

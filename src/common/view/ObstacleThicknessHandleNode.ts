@@ -78,6 +78,8 @@ export class ObstacleThicknessHandleNode extends Node {
       thicknessProperty.value = AIRFOIL_THICKNESS_RANGE.constrainValue(thickness);
     };
 
+    // Pointer-only: the arrow keys already change the thickness through createArrowKeyListener
+    // (ObstacleHandleKeyboard HotkeyData). A RichDragListener would bind them twice.
     const dragListener = new DragListener({
       targetNode: knob,
       drag: (event) => {

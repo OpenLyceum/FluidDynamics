@@ -397,6 +397,16 @@ export const VORTICITY_DEFAULT = 18;
 export const POINTER_RADIUS_M = 0.08;
 
 /**
+ * Keyboard stirring: how far one arrow press moves the stirring ring, in metres.
+ * Each press acts as a pointer stroke of this length, so it sets how hard a
+ * keyboard stir pushes (Shift divides it by HANDLE_KEYBOARD_STEP_FACTOR).
+ */
+export const KEYBOARD_STIR_STEP_M = 0.03;
+
+/** Where the stirring ring starts: upstream of the default obstacle, mid-channel. */
+export const KEYBOARD_STIR_START = new Vector2(0.25, 0.5);
+
+/**
  * Fraction of dye remaining after one second.
  *
  * The range runs the full span from "dye never fades" to "dye obviously fades",
@@ -629,6 +639,8 @@ export const RE_TURBULENT_ONSET = 200;
 // when the shaping handles landed.
 
 FluidDynamicsNamespace.register("FluidDynamicsConstants", {
+  KEYBOARD_STIR_STEP_M,
+  KEYBOARD_STIR_START,
   TIME_SPEED_MULTIPLIERS,
   SCREEN_VIEW_MARGIN,
   PANEL_CORNER_RADIUS,

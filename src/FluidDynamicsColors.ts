@@ -125,6 +125,12 @@ const FluidDynamicsColors = {
     projector: "rgba(10, 11, 16, 0.85)",
   }),
 
+  /** Light rim of the keyboard stirring ring, readable over dark fluid. */
+  stirRingStrokeColorProperty: new ProfileColorProperty(FluidDynamicsNamespace, "stirRingStroke", {
+    default: "rgba(255, 255, 255, 0.9)",
+    projector: "rgba(255, 255, 255, 0.9)",
+  }),
+
   /** Body of the toolbox's ruler icon, matching the ruler the icon takes out. */
   rulerIconFillColorProperty: new ProfileColorProperty(FluidDynamicsNamespace, "rulerIconFill", {
     default: "#ece171",

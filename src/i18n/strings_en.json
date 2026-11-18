@@ -21,8 +21,9 @@
     },
     "fluid": {
       "fieldName": "Fluid channel",
-      "fieldHelpText": "Drag inside the channel to push the fluid and add dye.",
+      "fieldHelpText": "Drag inside the channel, or use the arrow keys, to push the fluid and add dye. Space or Enter adds dye without pushing.",
       "fieldDescriptionPattern": "Fluid flows from left to right {{obstacle}} at {{speed}} metres per second. The Reynolds number is about {{reynolds}}, so {{wake}}.",
+      "dyeAddedResponse": "Dye added.",
       "flowSpeed": "Flow speed",
       "flowSpeedHelpText": "Raise the speed to increase the Reynolds number and destabilise the wake.",
       "viscosity": "Viscosity",
@@ -69,6 +70,10 @@
     }
   },
   "keyboardHelp": {
+    "fieldHeading": "Stir the Fluid",
+    "stir": "Stir the fluid (push it and add dye)",
+    "stirGently": "Stir gently",
+    "releaseDye": "Add dye without pushing",
     "obstacleHeading": "Shape the Obstacle",
     "resize": "Resize the obstacle",
     "tilt": "Tilt the obstacle",

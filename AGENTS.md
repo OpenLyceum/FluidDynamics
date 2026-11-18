@@ -32,6 +32,7 @@ Read both before changing the solver or the Scenery ↔ WebGPU bridge.
 | `src/common/view/FluidScreenView.ts` | Layout and wiring shared by both screens |
 | `src/common/view/fluidDescription.ts` | Live a11y description, shared by field and screen summaries |
 | `src/common/view/ObstacleHandleKeyboard.ts` | The handles' `HotkeyData` — read by both the listeners and the help dialog |
+| `src/common/view/FluidFieldKeyboard.ts` | Keyboard stirring: the field's `HotkeyData`, stroke arithmetic and Space/Enter dye listener |
 | `src/common/view/FluidKeyboardHelpContent.ts` | Keyboard-help dialog shared by both screens |
 | `src/intro/`, `src/lab/` | Thin screen wrappers; they differ only in `showFullControls` |
 
@@ -77,6 +78,15 @@ The listeners are built from them and so are the keyboard-help rows
 (`KeyboardHelpSectionRow.fromHotkeyData` in `FluidKeyboardHelpContent.ts`), so a
 binding cannot exist without being documented, or drift from what the dialog
 claims. Add a key there, not in a bare `keydown` handler.
+
+**The field is a focus stop: the keyboard stirs it.** `FluidFieldKeyboard.ts`
+holds the field's `HotkeyData`. An arrow press moves the stirring ring one
+`KEYBOARD_STIR_STEP_M` step (Shift: gentler) and submits that move as a pointer
+stroke, so the forces and dye shaders treat it like a drag of the same length.
+Space/Enter sets `dyeRequested`, which makes the pointer active with a zero delta:
+dye under the ring, no push. Both are cleared with the delta after the first
+substep (`consumePointerFrame`), and the drag's `start` forgets the ring's
+position so the first drag frame is not measured from it.
 
 Every control takes its `accessibleName` from the shared `a11y.fluid` string
 group, never a literal. New strings must be added to **all three** locale files;

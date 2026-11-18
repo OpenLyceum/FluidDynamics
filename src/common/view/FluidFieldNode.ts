@@ -24,18 +24,27 @@
  * graph, so all GPU work happens in update(), called from the ScreenView's
  * step(). update() ends with invalidatePaint(), because Scenery will not
  * re-invoke paintCanvas on its own schedule.
+ *
+ * ── Stirring ──────────────────────────────────────────────────────────────────
+ * A pointer drag and the keyboard feed the same per-frame pointer state
+ * (position + delta) the forces and dye shaders read. The field is a focus stop
+ * with a visible stirring ring: each arrow press is a stroke of one step, and
+ * Space/Enter paints dye at the ring with zero delta, so nothing is pushed.
+ * Keys live in FluidFieldKeyboard.ts.
  */
 
 import { Property, type TReadOnlyProperty } from "scenerystack/axon";
 import { Bounds2, Vector2 } from "scenerystack/dot";
 import { type EmptySelfOptions, optionize } from "scenerystack/phet-core";
 import { ModelViewTransform2 } from "scenerystack/phetcommon";
-import { CanvasNode, type CanvasNodeOptions, type Color, DragListener } from "scenerystack/scenery";
+import { CanvasNode, type CanvasNodeOptions, Circle, type Color, DragListener, Node } from "scenerystack/scenery";
 import type { TimeSpeed } from "scenerystack/scenery-phet";
 import FluidDynamicsColors from "../../FluidDynamicsColors.js";
 import {
   CHANNEL_HEIGHT_M,
   CHANNEL_WIDTH_M,
+  KEYBOARD_STIR_START,
+  KEYBOARD_STIR_STEP_M,
   MAX_PHYSICS_DT,
   MAX_SUBSTEPS_PER_FRAME,
   POINTER_RADIUS_M,
@@ -48,6 +57,8 @@ import { acquireFluidDevice, deviceLostEmitter, type GpuUnavailableReason } from
 import type { FluidModel } from "../model/FluidModel.js";
 import { obstacleShapeCode } from "../model/ObstacleShape.js";
 import { visualizationModeCode } from "../model/VisualizationMode.js";
+import { createReleaseDyeListener, STIR_DIRECTIONS, stirStroke } from "./FluidFieldKeyboard.js";
+import { createArrowKeyListener, keyboardStep } from "./ObstacleHandleKeyboard.js";
 
 /**
  * The speed colour ramp saturates at this multiple of the inflow speed, but never
@@ -79,6 +90,13 @@ export class FluidFieldNode extends CanvasNode {
   private pointerPosition: Vector2 | null = null;
   private pointerDelta = Vector2.ZERO;
 
+  /** Space/Enter asked for dye at the stirring ring this frame (no push). */
+  private dyeRequested = false;
+
+  /** The keyboard stirring ring's position, in model metres. */
+  private stirPosition = KEYBOARD_STIR_START;
+  private readonly stirRing: Node;
+
   /** Elapsed solver time, in seconds. Drives the inflow perturbation. */
   private elapsedTime = 0;
 
@@ -96,12 +114,12 @@ export class FluidFieldNode extends CanvasNode {
       {
         canvasBounds: fieldBounds,
         // A screen-reader user cannot see the dye, so the field carries a heading,
-        // a hint about the pointer interaction, and (supplied by the caller) a
-        // live paragraph describing what the flow is currently doing. It is not
-        // focusable: dragging the fluid has no keyboard equivalent, and a tab
-        // stop that does nothing is worse than none. The description is read in
-        // the play area like any other text.
+        // a hint about the stirring interaction, and (supplied by the caller) a
+        // live paragraph describing what the flow is currently doing. It is a
+        // focus stop: the arrow keys stir and Space/Enter adds dye, the keyboard
+        // path for the pointer drag (FluidFieldKeyboard.ts).
         tagName: "div",
+        focusable: true,
         accessibleHeading: a11y.fieldNameStringProperty,
         accessibleHelpText: a11y.fieldHelpTextStringProperty,
       },
@@ -128,8 +146,24 @@ export class FluidFieldNode extends CanvasNode {
     // drawImage can read from.
     this.gpuCanvas = document.createElement("canvas");
 
+    // The keyboard stirring ring: a dark rim under a light one, like the handle
+    // knobs, so it reads over both bright dye and dark fluid. Shown only while
+    // the field has focus; it is where an arrow press pushes and Space adds dye.
+    const ringRadius = this.modelViewTransform.modelToViewDeltaX(POINTER_RADIUS_M);
+    this.stirRing = new Node({
+      visible: false,
+      pickable: false,
+      children: [
+        new Circle(ringRadius, { stroke: FluidDynamicsColors.handleKnobStrokeColorProperty, lineWidth: 4 }),
+        new Circle(ringRadius, { stroke: FluidDynamicsColors.stirRingStrokeColorProperty, lineWidth: 2 }),
+      ],
+    });
+    this.addChild(this.stirRing);
+    this.moveStirRing();
+
     this.startDevice();
     this.addPointerForcing();
+    this.addKeyboardStirring(a11y.dyeAddedResponseStringProperty);
 
     // Grid resolution is the one parameter that cannot be a uniform — it changes
     // how much memory the fields need — so it rebuilds the engine's textures.
@@ -174,7 +208,7 @@ export class FluidFieldNode extends CanvasNode {
       // substep. The impulse is skipped at dt = 0 (forces.wgsl), but a delta
       // left over from a drag made while paused would otherwise fire as a
       // phantom push on the first frame after resuming.
-      this.pointerDelta = Vector2.ZERO;
+      this.consumePointerFrame();
     }
 
     this.invalidatePaint();
@@ -212,7 +246,7 @@ export class FluidFieldNode extends CanvasNode {
       // The pointer impulse is a per-frame event, not a sustained force: it
       // must not be applied once per substep or a fast drag would inject
       // several times the momentum the learner actually supplied.
-      this.pointerDelta = Vector2.ZERO;
+      this.consumePointerFrame();
     }
   }
 
@@ -242,6 +276,9 @@ export class FluidFieldNode extends CanvasNode {
     this.elapsedTime = 0;
     this.pointerPosition = null;
     this.pointerDelta = Vector2.ZERO;
+    this.dyeRequested = false;
+    this.stirPosition = KEYBOARD_STIR_START;
+    this.moveStirRing();
     this.engine?.reset();
     this.invalidatePaint();
   }
@@ -332,7 +369,9 @@ export class FluidFieldNode extends CanvasNode {
       airfoilThickness: model.airfoilThicknessProperty.value,
       visualization: visualizationModeCode(model.visualizationModeProperty.value),
       tracersVisible: model.tracersVisibleProperty.value,
-      pointerActive: pointer !== null && !this.pointerDelta.equals(Vector2.ZERO),
+      // Active for a stroke (a drag or an arrow press), and for Space/Enter,
+      // which paints dye with a zero delta so the forces pass pushes nothing.
+      pointerActive: pointer !== null && (this.dyeRequested || !this.pointerDelta.equals(Vector2.ZERO)),
       pointerRadius: POINTER_RADIUS_M,
       // The colour ramps saturate at a small multiple of the inflow speed, so
       // they stay informative across the whole speed slider instead of washing
@@ -349,8 +388,16 @@ export class FluidFieldNode extends CanvasNode {
    * is independent of how large the field is drawn.
    */
   private addPointerForcing(): void {
+    // Pointer-only: addKeyboardStirring is this drag's keyboard path (arrows stir through
+    // createArrowKeyListener, Space/Enter adds dye), with its keys in FluidFieldKeyboard.ts.
     const listener = new DragListener({
       targetNode: this,
+      // Forget the last keyboard stroke's position, so the first drag frame is
+      // not measured from wherever the stirring ring happened to be.
+      start: () => {
+        this.pointerPosition = null;
+        this.pointerDelta = Vector2.ZERO;
+      },
       drag: (event) => {
         const viewPoint = this.globalToLocalPoint(event.pointer.point);
         const modelPoint = this.modelViewTransform.viewToModelPosition(viewPoint);
@@ -369,6 +416,69 @@ export class FluidFieldNode extends CanvasNode {
       this.removeInputListener(listener);
       listener.dispose();
     });
+  }
+
+  /**
+   * The keyboard path for stirring. An arrow press moves the ring one step and
+   * submits that move as a pointer stroke, so the solver pushes the fluid along
+   * it and paints dye, exactly as a drag of the same length would. Presses
+   * within one frame add up. Space/Enter paints dye at the ring without a push.
+   */
+  private addKeyboardStirring(dyeAddedResponseProperty: TReadOnlyProperty<string>): void {
+    const stir = (direction: Vector2, fine: boolean): void => {
+      const from = this.stirPosition;
+      const to = stirStroke(from, direction, keyboardStep(KEYBOARD_STIR_STEP_M, fine));
+      this.pointerDelta = this.pointerDelta.plus(to.minus(from));
+      this.pointerPosition = to;
+      this.stirPosition = to;
+      this.moveStirRing();
+    };
+    const arrowListener = createArrowKeyListener({
+      up: (fine) => stir(STIR_DIRECTIONS.up, fine),
+      down: (fine) => stir(STIR_DIRECTIONS.down, fine),
+      left: (fine) => stir(STIR_DIRECTIONS.left, fine),
+      right: (fine) => stir(STIR_DIRECTIONS.right, fine),
+    });
+    const dyeListener = createReleaseDyeListener(
+      () => {
+        this.pointerPosition = this.stirPosition;
+        this.dyeRequested = true;
+      },
+      // The shader draws the dye, so without this a press is silent to a screen reader.
+      () => this.addAccessibleResponse(dyeAddedResponseProperty.value),
+    );
+    const focusListener = {
+      focus: () => {
+        this.stirRing.visible = true;
+      },
+      blur: () => {
+        this.stirRing.visible = false;
+        this.pointerPosition = null;
+        this.pointerDelta = Vector2.ZERO;
+        this.dyeRequested = false;
+      },
+    };
+    this.addInputListener(arrowListener);
+    this.addInputListener(dyeListener);
+    this.addInputListener(focusListener);
+    this.disposers.push(() => {
+      this.removeInputListener(arrowListener);
+      this.removeInputListener(dyeListener);
+      this.removeInputListener(focusListener);
+      arrowListener.dispose();
+      dyeListener.dispose();
+    });
+  }
+
+  /** Places the stirring ring over the current stirring position. */
+  private moveStirRing(): void {
+    this.stirRing.center = this.modelViewTransform.modelToViewPosition(this.stirPosition);
+  }
+
+  /** Clears the per-frame pointer impulse and dye request once a solver step has used them. */
+  private consumePointerFrame(): void {
+    this.pointerDelta = Vector2.ZERO;
+    this.dyeRequested = false;
   }
 }
 

@@ -19,7 +19,8 @@ shown beneath the field.
 - **Lab** — viscosity, obstacle size, shape (cylinder, flat plate, airfoil) and
   position, and four views of the field (dye, speed, vorticity, pressure).
   Vortex detail, dye fade and grid resolution live in Preferences → Simulation.
-  Drag anywhere in the channel to push the fluid and add dye.
+  Drag anywhere in the channel to push the fluid and add dye, or focus the channel
+  and stir with the arrow keys (Space or Enter adds dye without pushing).
 
 **WebGPU required.** The solver is Jos Stam's *Stable Fluids* running entirely in
 WGSL compute shaders — there is no CPU fallback. Recent Chrome, Edge and Safari

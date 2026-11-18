@@ -21,8 +21,9 @@
     },
     "fluid": {
       "fieldName": "Canal de fluide",
-      "fieldHelpText": "Faites glisser dans le canal pour pousser le fluide et ajouter du colorant.",
+      "fieldHelpText": "Faites glisser dans le canal, ou utilisez les touches fléchées, pour pousser le fluide et ajouter du colorant. Espace ou Entrée ajoute du colorant sans pousser.",
       "fieldDescriptionPattern": "Le fluide s'écoule de gauche à droite {{obstacle}} à {{speed}} mètres par seconde. Le nombre de Reynolds vaut environ {{reynolds}}, donc {{wake}}.",
+      "dyeAddedResponse": "Colorant ajouté.",
       "flowSpeed": "Vitesse d'écoulement",
       "flowSpeedHelpText": "Augmentez la vitesse pour élever le nombre de Reynolds et déstabiliser le sillage.",
       "viscosity": "Viscosité",
@@ -69,6 +70,10 @@
     }
   },
   "keyboardHelp": {
+    "fieldHeading": "Remuer le fluide",
+    "stir": "Remuer le fluide (le pousser et ajouter du colorant)",
+    "stirGently": "Remuer doucement",
+    "releaseDye": "Ajouter du colorant sans pousser",
     "obstacleHeading": "Modeler l'obstacle",
     "resize": "Redimensionner l'obstacle",
     "tilt": "Incliner l'obstacle",
