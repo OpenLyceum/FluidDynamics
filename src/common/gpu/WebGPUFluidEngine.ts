@@ -115,6 +115,8 @@ export type FluidStepValues = Omit<FluidUniformValues, "domainWidth" | "domainHe
   readonly tracersVisible: boolean;
 };
 
+type TrackAllocation = <T extends GPUBuffer | GPUTexture>(allocation: T) => T;
+
 /** A field that must be read and written in the same pass, so it exists twice. */
 class PingPong {
   private readonly textures: [GPUTexture, GPUTexture];
@@ -123,7 +125,13 @@ class PingPong {
   /** Index of the texture holding the current value. */
   public parity: 0 | 1 = 0;
 
-  public constructor(device: GPUDevice, label: string, format: GPUTextureFormat, grid: FluidGridSpec) {
+  public constructor(
+    device: GPUDevice,
+    label: string,
+    format: GPUTextureFormat,
+    grid: FluidGridSpec,
+    trackAllocation: TrackAllocation,
+  ) {
     const descriptor: GPUTextureDescriptor = {
       size: [grid.width, grid.height],
       format,
@@ -132,8 +140,8 @@ class PingPong {
       usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC,
     };
     this.textures = [
-      device.createTexture({ ...descriptor, label: `${label}0` }),
-      device.createTexture({ ...descriptor, label: `${label}1` }),
+      trackAllocation(device.createTexture({ ...descriptor, label: `${label}0` })),
+      trackAllocation(device.createTexture({ ...descriptor, label: `${label}1` })),
     ];
     this.views = [this.textures[0].createView(), this.textures[1].createView()];
   }
@@ -164,6 +172,49 @@ export type WebGPUFluidEngineOptions = {
   readonly presentToCanvas?: boolean;
 };
 
+type FluidFields = {
+  readonly velocity: PingPong;
+  readonly dye: PingPong;
+  readonly pressure: PingPong;
+  readonly velocitySource: GPUTexture;
+  readonly velocitySourceView: GPUTextureView;
+  /**
+   * Scratch texture holding the predictor (φ_A) of the MacCormack velocity
+   * advection. Written by the backward trace, read by the corrector, then dead
+   * until next frame — one allocation reused for the life of the grid.
+   */
+  readonly advectTemp: GPUTexture;
+  readonly advectTempView: GPUTextureView;
+  /** The same scratch role, for the dye's MacCormack corrector. */
+  readonly dyeTemp: GPUTexture;
+  readonly dyeTempView: GPUTextureView;
+  readonly divergence: GPUTexture;
+  readonly divergenceView: GPUTextureView;
+  readonly curl: GPUTexture;
+  readonly curlView: GPUTextureView;
+  /**
+   * The obstacle's signed distance, one value per cell, written by mask.wgsl.
+   * Read by every kernel that needs to know where the body is.
+   */
+  readonly obstacle: GPUTexture;
+  readonly obstacleView: GPUTextureView;
+
+  /**
+   * The tracer dots: one vec4 per particle, advected in place by
+   * tracerStep.wgsl and read for its positions by tracerDraw.wgsl. Never read
+   * back to the CPU — a readback would stall the pipeline every frame, and
+   * nothing on this side needs to know where a dot is.
+   *
+   * A newly created buffer reads as zero, which is a full set of parked
+   * particles, so an empty channel needs no initialization pass.
+   */
+  readonly tracers: GPUBuffer;
+};
+
+type EngineCreation =
+  | { readonly available: true; readonly engine: WebGPUFluidEngine }
+  | { readonly available: false; readonly reason: "noDevice" };
+
 export class WebGPUFluidEngine {
   public readonly canvas: HTMLCanvasElement;
 
@@ -186,47 +237,12 @@ export class WebGPUFluidEngine {
    * keeps this engine — and everything it closes over — alive for the life of
    * the page.
    */
-  private readonly errorListener: (event: Event) => void;
+  private readonly errorListener: (event: GPUUncapturedErrorEvent) => void;
 
   private grid: FluidGridSpec;
 
-  // Fields. Recreated whenever the grid resolution changes.
-  private velocity!: PingPong;
-  private dye!: PingPong;
-  private pressure!: PingPong;
-  private velocitySource!: GPUTexture;
-  private velocitySourceView!: GPUTextureView;
-  /**
-   * Scratch texture holding the predictor (φ_A) of the MacCormack velocity
-   * advection. Written by the backward trace, read by the corrector, then dead
-   * until next frame — one allocation reused for the life of the grid.
-   */
-  private advectTemp!: GPUTexture;
-  private advectTempView!: GPUTextureView;
-  /** The same scratch role, for the dye's MacCormack corrector. */
-  private dyeTemp!: GPUTexture;
-  private dyeTempView!: GPUTextureView;
-  private divergence!: GPUTexture;
-  private divergenceView!: GPUTextureView;
-  private curl!: GPUTexture;
-  private curlView!: GPUTextureView;
-  /**
-   * The obstacle's signed distance, one value per cell, written by mask.wgsl.
-   * Read by every kernel that needs to know where the body is.
-   */
-  private obstacle!: GPUTexture;
-  private obstacleView!: GPUTextureView;
-
-  /**
-   * The tracer dots: one vec4 per particle, advected in place by
-   * tracerStep.wgsl and read for its positions by tracerDraw.wgsl. Never read
-   * back to the CPU — a readback would stall the pipeline every frame, and
-   * nothing on this side needs to know where a dot is.
-   *
-   * A newly created buffer reads as zero, which is a full set of parked
-   * particles, so an empty channel needs no initialization pass.
-   */
-  private tracers!: GPUBuffer;
+  // Recreated together whenever the grid resolution changes.
+  private fields: FluidFields;
 
   /**
    * Set whenever the baked obstacle field no longer matches the parameters, so
@@ -247,8 +263,8 @@ export class WebGPUFluidEngine {
     thickness: Number.NaN,
   };
 
-  private readonly pipelines!: Pipelines;
-  private bindGroups!: BindGroups;
+  private readonly pipelines: Pipelines;
+  private bindGroups: BindGroups;
 
   /**
    * Where the display pass draws. Rendering to an offscreen texture and then
@@ -257,8 +273,8 @@ export class WebGPUFluidEngine {
    * finished frame can be read back for testing, and presentation becomes a
    * single command that can be skipped where it is unsupported.
    */
-  private readonly displayTexture!: GPUTexture;
-  private readonly displayView!: GPUTextureView;
+  private readonly displayTexture: GPUTexture;
+  private readonly displayView: GPUTextureView;
 
   /** Staging buffer for readDisplayPixels, allocated on first use. */
   private readbackBuffer: GPUBuffer | null = null;
@@ -300,14 +316,53 @@ export class WebGPUFluidEngine {
   private isDisposed = false;
   private hasFailed = false;
 
-  public constructor(
+  /** Acquire a canvas context and release partial allocations if initialization throws. */
+  public static create(
     canvas: HTMLCanvasElement,
     device: GPUDevice,
     grid: FluidGridSpec,
     onFailure: () => void,
     options?: WebGPUFluidEngineOptions,
+  ): EngineCreation {
+    const rollback: (() => void)[] = [];
+    try {
+      canvas.width = DISPLAY_CANVAS_WIDTH;
+      canvas.height = DISPLAY_CANVAS_HEIGHT;
+      const context = canvas.getContext("webgpu");
+      if (context === null) {
+        return { available: false, reason: "noDevice" };
+      }
+
+      const engine = new WebGPUFluidEngine(canvas, context, device, grid, onFailure, rollback, options);
+      return { available: true, engine };
+    } catch (error) {
+      // Release in reverse acquisition order, with the canvas context last among GPU resources.
+      for (const release of rollback.reverse()) {
+        try {
+          release();
+        } catch (cleanupError) {
+          // biome-ignore lint/suspicious/noConsole: report cleanup failures without masking the initialization error
+          console.error("WebGPU cleanup failed after fluid solver initialization", cleanupError);
+        }
+      }
+
+      // biome-ignore lint/suspicious/noConsole: preserve unexpected GPU initialization errors for diagnosis
+      console.error("WebGPU initialization failed in the fluid solver", error);
+      return { available: false, reason: "noDevice" };
+    }
+  }
+
+  private constructor(
+    canvas: HTMLCanvasElement,
+    context: GPUCanvasContext,
+    device: GPUDevice,
+    grid: FluidGridSpec,
+    onFailure: () => void,
+    rollback: (() => void)[],
+    options?: WebGPUFluidEngineOptions,
   ) {
     this.canvas = canvas;
+    this.context = context;
     this.device = device;
     this.grid = grid;
     this.onFailure = onFailure;
@@ -316,24 +371,11 @@ export class WebGPUFluidEngine {
 
     // Registered before any resource is created, so validation errors raised
     // during pipeline construction are caught too.
-    this.errorListener = (event: Event): void => {
-      this.reportError(event as GPUUncapturedErrorEvent);
-    };
+    this.errorListener = (event) => this.reportError(event);
+    rollback.push(() => device.removeEventListener("uncapturederror", this.errorListener));
     device.addEventListener("uncapturederror", this.errorListener);
 
-    canvas.width = DISPLAY_CANVAS_WIDTH;
-    canvas.height = DISPLAY_CANVAS_HEIGHT;
-
-    const context = canvas.getContext("webgpu");
-    if (context === null) {
-      this.hasFailed = true;
-      // dispose() will never run on a constructor that throws, so the handler
-      // registered above has to come back off the shared device here.
-      device.removeEventListener("uncapturederror", this.errorListener);
-      onFailure();
-      throw new Error("canvas does not support a webgpu context");
-    }
-    this.context = context;
+    rollback.push(() => context.unconfigure());
     this.context.configure({
       device,
       format: this.canvasFormat,
@@ -345,31 +387,40 @@ export class WebGPUFluidEngine {
       alphaMode: "opaque",
     });
 
-    this.uniformBuffer = device.createBuffer({
-      label: "fluid-uniforms",
-      size: UNIFORM_BUFFER_SIZE,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-    });
+    const trackAllocation: TrackAllocation = (allocation) => {
+      rollback.push(() => allocation.destroy());
+      return allocation;
+    };
+    this.uniformBuffer = trackAllocation(
+      device.createBuffer({
+        label: "fluid-uniforms",
+        size: UNIFORM_BUFFER_SIZE,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      }),
+    );
 
     // Clamp-to-edge, so a backtrace that leaves the channel reads the boundary
     // value rather than wrapping around to the far side.
     this.linearSampler = device.createSampler({
-      magFilter: "linear",
-      minFilter: "linear",
       addressModeU: "clamp-to-edge",
       addressModeV: "clamp-to-edge",
+      magFilter: "linear",
+      minFilter: "linear",
     });
 
-    this.displayTexture = device.createTexture({
-      label: "display-target",
-      size: [DISPLAY_CANVAS_WIDTH, DISPLAY_CANVAS_HEIGHT],
-      format: this.canvasFormat,
-      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC,
-    });
+    this.displayTexture = trackAllocation(
+      device.createTexture({
+        label: "display-target",
+        size: [DISPLAY_CANVAS_WIDTH, DISPLAY_CANVAS_HEIGHT],
+        format: this.canvasFormat,
+        usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC,
+      }),
+    );
     this.displayView = this.displayTexture.createView();
 
     this.pipelines = createPipelines(device, this.canvasFormat);
-    this.createFields();
+    this.fields = this.createFields(trackAllocation);
+    this.bindGroups = this.createBindGroups();
   }
 
   /** Whether the engine is still able to render. */
@@ -534,7 +585,10 @@ export class WebGPUFluidEngine {
     const buffer = this.velocityReadbackBuffer;
 
     const encoder = this.device.createCommandEncoder({ label: "velocity-readback" });
-    encoder.copyTextureToBuffer({ texture: this.velocity.currentTexture }, { buffer, bytesPerRow }, [width, height]);
+    encoder.copyTextureToBuffer({ texture: this.fields.velocity.currentTexture }, { buffer, bytesPerRow }, [
+      width,
+      height,
+    ]);
     this.device.queue.submit([encoder.finish()]);
 
     await buffer.mapAsync(GPUMapMode.READ);
@@ -559,7 +613,9 @@ export class WebGPUFluidEngine {
     // Recreating the textures is the clearing mechanism: WebGPU guarantees new
     // resources read as zero, which saves a clear kernel and two more layouts.
     this.destroyFields();
-    this.createFields();
+    this.fields = this.createFields();
+    this.bindGroups = this.createBindGroups();
+    this.isMaskStale = true;
     this.inflowRamp = null;
     this.tracerRelease = initialTracerRelease();
     this.hasStepped = false;
@@ -572,7 +628,9 @@ export class WebGPUFluidEngine {
     }
     this.destroyFields();
     this.grid = grid;
-    this.createFields();
+    this.fields = this.createFields();
+    this.bindGroups = this.createBindGroups();
+    this.isMaskStale = true;
     this.inflowRamp = null;
     this.tracerRelease = initialTracerRelease();
     this.hasStepped = false;
@@ -589,6 +647,7 @@ export class WebGPUFluidEngine {
     this.readbackBuffer?.destroy();
     this.velocityReadbackBuffer?.destroy();
     this.uniformBuffer.destroy();
+    this.context.unconfigure();
   }
 
   // ── Frame recording ─────────────────────────────────────────────────────────
@@ -635,7 +694,7 @@ export class WebGPUFluidEngine {
       this.wereTracersVisible = visible;
       this.tracerRelease = initialTracerRelease();
       if (visible) {
-        this.device.queue.writeBuffer(this.tracers, 0, new Float32Array(TRACER_TOTAL_COUNT * 4));
+        this.device.queue.writeBuffer(this.fields.tracers, 0, new Float32Array(TRACER_TOTAL_COUNT * 4));
       }
     }
 
@@ -672,52 +731,58 @@ export class WebGPUFluidEngine {
     // 1. Advect velocity: backward trace into the MacCormack scratch texture
     //    (φ_A), then the corrector writes the limited, anti-diffused velocity
     //    into velocitySource, which the diffusion solve reads from.
-    dispatch(this.pipelines.advectVelocity, bg.advectVelocity[this.velocity.parity]);
-    dispatch(this.pipelines.advectVelocityCorrect, bg.advectVelocityCorrect[this.velocity.parity]);
+    dispatch(this.pipelines.advectVelocity, bg.advectVelocity[this.fields.velocity.parity]);
+    dispatch(this.pipelines.advectVelocityCorrect, bg.advectVelocityCorrect[this.fields.velocity.parity]);
 
     // 2. Viscous diffusion. The seeding dispatch fills the iterate from the
     //    advected source; the red-black SOR sweeps then alternate colours, one
     //    dispatch each, so a red/black pair is one full Gauss–Seidel iteration
     //    and an even count lands back on the parity it started from.
     dispatch(this.pipelines.diffuseSeed, bg.diffuseSeed);
-    this.velocity.parity = 0;
+    this.fields.velocity.parity = 0;
     for (let i = 0; i < viscousSweeps * 2; i++) {
-      dispatch(i % 2 === 0 ? this.pipelines.diffuseRed : this.pipelines.diffuseBlack, bg.diffuse[this.velocity.parity]);
-      this.velocity.swap();
+      dispatch(
+        i % 2 === 0 ? this.pipelines.diffuseRed : this.pipelines.diffuseBlack,
+        bg.diffuse[this.fields.velocity.parity],
+      );
+      this.fields.velocity.swap();
     }
 
     // 3-4. Restore the small-scale vorticity advection dissipated.
-    dispatch(this.pipelines.curl, bg.curl[this.velocity.parity]);
-    dispatch(this.pipelines.vorticity, bg.vorticity[this.velocity.parity]);
-    this.velocity.swap();
+    dispatch(this.pipelines.curl, bg.curl[this.fields.velocity.parity]);
+    dispatch(this.pipelines.vorticity, bg.vorticity[this.fields.velocity.parity]);
+    this.fields.velocity.swap();
 
     // 5. Inflow, outflow, walls, and the learner's pointer.
-    dispatch(this.pipelines.forces, bg.forces[this.velocity.parity]);
-    this.velocity.swap();
+    dispatch(this.pipelines.forces, bg.forces[this.fields.velocity.parity]);
+    this.fields.velocity.swap();
 
     // 6-8. Projection: make the velocity field divergence-free. Red-black SOR
     //      alternates one red and one black sweep per step, so the dispatch
     //      count equals pressureIterations while each pair is a full GS iterate.
-    dispatch(this.pipelines.divergence, bg.divergence[this.velocity.parity]);
+    dispatch(this.pipelines.divergence, bg.divergence[this.fields.velocity.parity]);
     for (let i = 0; i < pressureIterations; i++) {
       dispatch(
         i % 2 === 0 ? this.pipelines.pressureRed : this.pipelines.pressureBlack,
-        bg.pressure[this.pressure.parity],
+        bg.pressure[this.fields.pressure.parity],
       );
-      this.pressure.swap();
+      this.fields.pressure.swap();
     }
-    dispatch(this.pipelines.gradientSubtract, bg.gradientSubtract[this.velocity.parity][this.pressure.parity]);
-    this.velocity.swap();
+    dispatch(
+      this.pipelines.gradientSubtract,
+      bg.gradientSubtract[this.fields.velocity.parity][this.fields.pressure.parity],
+    );
+    this.fields.velocity.swap();
 
     // 9-11. Dye: inject at the inflow, then carry it with the finished velocity
     //       — through the same MacCormack predictor–corrector the velocity gets,
     //       because the dye is what the learner actually looks at and a plain
     //       backward trace smears the bands out well before the far wall.
-    dispatch(this.pipelines.injectDye, bg.injectDye[this.dye.parity]);
-    this.dye.swap();
-    dispatch(this.pipelines.advectDye, bg.advectDye[this.velocity.parity][this.dye.parity]);
-    dispatch(this.pipelines.advectDyeCorrect, bg.advectDyeCorrect[this.velocity.parity][this.dye.parity]);
-    this.dye.swap();
+    dispatch(this.pipelines.injectDye, bg.injectDye[this.fields.dye.parity]);
+    this.fields.dye.swap();
+    dispatch(this.pipelines.advectDye, bg.advectDye[this.fields.velocity.parity][this.fields.dye.parity]);
+    dispatch(this.pipelines.advectDyeCorrect, bg.advectDyeCorrect[this.fields.velocity.parity][this.fields.dye.parity]);
+    this.fields.dye.swap();
 
     // 12. Carry the tracer dots along the velocity this step finished with, and
     //     release the column the clock asked for. Last, so the dots see the
@@ -725,7 +790,7 @@ export class WebGPUFluidEngine {
     //     dispatch over a few hundred particles either way.
     if (tracersVisible) {
       pass.setPipeline(this.pipelines.tracerStep);
-      pass.setBindGroup(0, bg.tracerStep[this.velocity.parity]);
+      pass.setBindGroup(0, bg.tracerStep[this.fields.velocity.parity]);
       pass.dispatchWorkgroups(Math.ceil(TRACER_TOTAL_COUNT / TRACER_WORKGROUP_SIZE));
     }
 
@@ -745,7 +810,10 @@ export class WebGPUFluidEngine {
       ],
     });
     pass.setPipeline(this.pipelines.display);
-    pass.setBindGroup(0, this.bindGroups.display[this.dye.parity][this.velocity.parity][this.pressure.parity]);
+    pass.setBindGroup(
+      0,
+      this.bindGroups.display[this.fields.dye.parity][this.fields.velocity.parity][this.fields.pressure.parity],
+    );
     pass.draw(3);
 
     // Over the field, in the same pass: the dots mark fluid parcels, so they
@@ -763,91 +831,85 @@ export class WebGPUFluidEngine {
 
   // ── Resources ───────────────────────────────────────────────────────────────
 
-  private createFields(): void {
+  private createFields(trackAllocation: TrackAllocation = (allocation) => allocation): FluidFields {
     const device = this.device;
     const grid = this.grid;
 
-    this.velocity = new PingPong(device, "velocity", VELOCITY_FORMAT, grid);
-    this.dye = new PingPong(device, "dye", VELOCITY_FORMAT, grid);
-    this.pressure = new PingPong(device, "pressure", SCALAR_FORMAT, grid);
+    const velocity = new PingPong(device, "velocity", VELOCITY_FORMAT, grid, trackAllocation);
+    const dye = new PingPong(device, "dye", VELOCITY_FORMAT, grid, trackAllocation);
+    const pressure = new PingPong(device, "pressure", SCALAR_FORMAT, grid, trackAllocation);
 
-    const storageAndSample = GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING;
+    const createFieldTexture = (label: string, format: GPUTextureFormat): GPUTexture =>
+      trackAllocation(
+        device.createTexture({
+          label,
+          size: [grid.width, grid.height],
+          format,
+          usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
+        }),
+      );
 
-    this.velocitySource = device.createTexture({
-      label: "velocity-source",
-      size: [grid.width, grid.height],
-      format: VELOCITY_FORMAT,
-      usage: storageAndSample,
-    });
-    this.velocitySourceView = this.velocitySource.createView();
+    const velocitySource = createFieldTexture("velocity-source", VELOCITY_FORMAT);
+    const velocitySourceView = velocitySource.createView();
 
-    this.advectTemp = device.createTexture({
-      label: "advect-temp",
-      size: [grid.width, grid.height],
-      format: VELOCITY_FORMAT,
-      usage: storageAndSample,
-    });
-    this.advectTempView = this.advectTemp.createView();
+    const advectTemp = createFieldTexture("advect-temp", VELOCITY_FORMAT);
+    const advectTempView = advectTemp.createView();
 
-    this.dyeTemp = device.createTexture({
-      label: "dye-temp",
-      size: [grid.width, grid.height],
-      format: VELOCITY_FORMAT,
-      usage: storageAndSample,
-    });
-    this.dyeTempView = this.dyeTemp.createView();
+    const dyeTemp = createFieldTexture("dye-temp", VELOCITY_FORMAT);
+    const dyeTempView = dyeTemp.createView();
 
-    this.obstacle = device.createTexture({
-      label: "obstacle-field",
-      size: [grid.width, grid.height],
-      format: SCALAR_FORMAT,
-      usage: storageAndSample,
-    });
-    this.obstacleView = this.obstacle.createView();
-    // A new texture reads as zero, which the solver would take for "solid
-    // everywhere". Nothing may read it before mask.wgsl has filled it in.
-    this.isMaskStale = true;
+    const obstacle = createFieldTexture("obstacle-field", SCALAR_FORMAT);
+    const obstacleView = obstacle.createView();
 
-    this.divergence = device.createTexture({
-      label: "divergence",
-      size: [grid.width, grid.height],
-      format: SCALAR_FORMAT,
-      usage: storageAndSample,
-    });
-    this.divergenceView = this.divergence.createView();
+    const divergence = createFieldTexture("divergence", SCALAR_FORMAT);
+    const divergenceView = divergence.createView();
 
-    this.curl = device.createTexture({
-      label: "curl",
-      size: [grid.width, grid.height],
-      format: SCALAR_FORMAT,
-      usage: storageAndSample,
-    });
-    this.curlView = this.curl.createView();
+    const curl = createFieldTexture("curl", SCALAR_FORMAT);
+    const curlView = curl.createView();
 
     // Grid-independent — the dots live in metres, not cells — but created and
     // destroyed with the fields so that reset() and a resolution change clear
     // them along with everything else.
-    this.tracers = device.createBuffer({
-      label: "tracers",
-      // vec4<f32> per particle: position in metres, age in seconds, alive flag.
-      size: TRACER_TOTAL_COUNT * 4 * Float32Array.BYTES_PER_ELEMENT,
-      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-    });
+    const tracers = trackAllocation(
+      device.createBuffer({
+        label: "tracers",
+        // vec4<f32> per particle: position in metres, age in seconds, alive flag.
+        size: TRACER_TOTAL_COUNT * 4 * Float32Array.BYTES_PER_ELEMENT,
+        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+      }),
+    );
 
-    this.bindGroups = this.createBindGroups();
+    return {
+      velocity,
+      dye,
+      pressure,
+      velocitySource,
+      velocitySourceView,
+      advectTemp,
+      advectTempView,
+      dyeTemp,
+      dyeTempView,
+      divergence,
+      divergenceView,
+      curl,
+      curlView,
+      obstacle,
+      obstacleView,
+      tracers,
+    };
   }
 
   private destroyFields(): void {
-    this.velocity.destroy();
-    this.dye.destroy();
-    this.pressure.destroy();
-    this.velocitySource.destroy();
-    this.advectTemp.destroy();
-    this.dyeTemp.destroy();
-    this.obstacle.destroy();
-    this.divergence.destroy();
-    this.curl.destroy();
-    this.tracers.destroy();
+    this.fields.velocity.destroy();
+    this.fields.dye.destroy();
+    this.fields.pressure.destroy();
+    this.fields.velocitySource.destroy();
+    this.fields.advectTemp.destroy();
+    this.fields.dyeTemp.destroy();
+    this.fields.obstacle.destroy();
+    this.fields.divergence.destroy();
+    this.fields.curl.destroy();
+    this.fields.tracers.destroy();
   }
 
   private createBindGroups(): BindGroups {
@@ -856,11 +918,11 @@ export class WebGPUFluidEngine {
     const uniform: GPUBindGroupEntry = { binding: 0, resource: { buffer: this.uniformBuffer } };
     const sampler: GPUBindGroupEntry = { binding: 1, resource: this.linearSampler };
     /** Bound to every compute layout, whether or not the kernel reads it. */
-    const obstacle: GPUBindGroupEntry = { binding: OBSTACLE_BINDING, resource: this.obstacleView };
+    const obstacle: GPUBindGroupEntry = { binding: OBSTACLE_BINDING, resource: this.fields.obstacleView };
 
-    const velocityViews = this.velocity.views;
-    const dyeViews = this.dye.views;
-    const pressureViews = this.pressure.views;
+    const velocityViews = this.fields.velocity.views;
+    const dyeViews = this.fields.dye.views;
+    const pressureViews = this.fields.pressure.views;
 
     const group = (layout: GPUBindGroupLayout, entries: GPUBindGroupEntry[]): GPUBindGroup =>
       device.createBindGroup({ layout, entries });
@@ -869,7 +931,7 @@ export class WebGPUFluidEngine {
     const perParity = <T>(build: (parity: 0 | 1) => T): [T, T] => [build(0), build(1)];
 
     return {
-      mask: group(layouts.mask, [uniform, { binding: 1, resource: this.obstacleView }]),
+      mask: group(layouts.mask, [uniform, { binding: 1, resource: this.fields.obstacleView }]),
 
       // Predicts φ_A: backward-advects velocity by itself into the scratch texture.
       advectVelocity: perParity((p) =>
@@ -878,7 +940,7 @@ export class WebGPUFluidEngine {
           sampler,
           { binding: 2, resource: velocityViews[p] },
           { binding: 3, resource: velocityViews[p] },
-          { binding: 4, resource: this.advectTempView },
+          { binding: 4, resource: this.fields.advectTempView },
           { binding: 5, resource: velocityViews[p] },
           obstacle,
         ]),
@@ -892,8 +954,8 @@ export class WebGPUFluidEngine {
           uniform,
           sampler,
           { binding: 2, resource: velocityViews[p] },
-          { binding: 3, resource: this.advectTempView },
-          { binding: 4, resource: this.velocitySourceView },
+          { binding: 3, resource: this.fields.advectTempView },
+          { binding: 4, resource: this.fields.velocitySourceView },
           { binding: 5, resource: velocityViews[p] },
           obstacle,
         ]),
@@ -902,8 +964,8 @@ export class WebGPUFluidEngine {
       // Seeding dispatch: iterate seeded from the advected source itself.
       diffuseSeed: group(layouts.twoInRGBA, [
         uniform,
-        { binding: 1, resource: this.velocitySourceView },
-        { binding: 2, resource: this.velocitySourceView },
+        { binding: 1, resource: this.fields.velocitySourceView },
+        { binding: 2, resource: this.fields.velocitySourceView },
         { binding: 3, resource: velocityViews[0] },
         obstacle,
       ]),
@@ -911,7 +973,7 @@ export class WebGPUFluidEngine {
       diffuse: perParity((p) =>
         group(layouts.twoInRGBA, [
           uniform,
-          { binding: 1, resource: this.velocitySourceView },
+          { binding: 1, resource: this.fields.velocitySourceView },
           { binding: 2, resource: velocityViews[p] },
           { binding: 3, resource: velocityViews[p === 0 ? 1 : 0] },
           obstacle,
@@ -922,7 +984,7 @@ export class WebGPUFluidEngine {
         group(layouts.oneInScalar, [
           uniform,
           { binding: 1, resource: velocityViews[p] },
-          { binding: 2, resource: this.curlView },
+          { binding: 2, resource: this.fields.curlView },
           obstacle,
         ]),
       ),
@@ -931,7 +993,7 @@ export class WebGPUFluidEngine {
         group(layouts.mixedRGBA, [
           uniform,
           { binding: 1, resource: velocityViews[p] },
-          { binding: 2, resource: this.curlView },
+          { binding: 2, resource: this.fields.curlView },
           { binding: 3, resource: velocityViews[p === 0 ? 1 : 0] },
           obstacle,
         ]),
@@ -950,7 +1012,7 @@ export class WebGPUFluidEngine {
         group(layouts.oneInScalar, [
           uniform,
           { binding: 1, resource: velocityViews[p] },
-          { binding: 2, resource: this.divergenceView },
+          { binding: 2, resource: this.fields.divergenceView },
           obstacle,
         ]),
       ),
@@ -959,7 +1021,7 @@ export class WebGPUFluidEngine {
         group(layouts.twoInScalar, [
           uniform,
           { binding: 1, resource: pressureViews[p] },
-          { binding: 2, resource: this.divergenceView },
+          { binding: 2, resource: this.fields.divergenceView },
           { binding: 3, resource: pressureViews[p === 0 ? 1 : 0] },
           obstacle,
         ]),
@@ -994,7 +1056,7 @@ export class WebGPUFluidEngine {
             sampler,
             { binding: 2, resource: velocityViews[v] },
             { binding: 3, resource: dyeViews[d] },
-            { binding: 4, resource: this.dyeTempView },
+            { binding: 4, resource: this.fields.dyeTempView },
             { binding: 5, resource: dyeViews[d] },
             obstacle,
           ]),
@@ -1009,7 +1071,7 @@ export class WebGPUFluidEngine {
             uniform,
             sampler,
             { binding: 2, resource: velocityViews[v] },
-            { binding: 3, resource: this.dyeTempView },
+            { binding: 3, resource: this.fields.dyeTempView },
             { binding: 4, resource: dyeViews[d === 0 ? 1 : 0] },
             { binding: 5, resource: dyeViews[d] },
             obstacle,
@@ -1025,7 +1087,7 @@ export class WebGPUFluidEngine {
               sampler,
               { binding: 2, resource: dyeViews[d] },
               { binding: 3, resource: velocityViews[v] },
-              { binding: 4, resource: this.curlView },
+              { binding: 4, resource: this.fields.curlView },
               { binding: 5, resource: pressureViews[p] },
             ]),
           ),
@@ -1037,12 +1099,12 @@ export class WebGPUFluidEngine {
           uniform,
           sampler,
           { binding: 2, resource: velocityViews[v] },
-          { binding: 3, resource: { buffer: this.tracers } },
+          { binding: 3, resource: { buffer: this.fields.tracers } },
           obstacle,
         ]),
       ),
 
-      tracerDraw: group(layouts.tracerDraw, [uniform, { binding: 1, resource: { buffer: this.tracers } }]),
+      tracerDraw: group(layouts.tracerDraw, [uniform, { binding: 1, resource: { buffer: this.fields.tracers } }]),
     };
   }
 
@@ -1054,8 +1116,7 @@ export class WebGPUFluidEngine {
     // A WebGPU error is otherwise completely silent — it leaves a blank field
     // and no way at all to diagnose what went wrong. The learner still gets the
     // "WebGPU is not available" message via onFailure(); this line is for
-    // whoever has to debug it. It is the only console use in src/, and the
-    // hasFailed guard above means it fires at most once per engine.
+    // whoever has to debug it. The hasFailed guard means it fires at most once per engine.
     // biome-ignore lint/suspicious/noConsole: see above
     console.error(`WebGPU error in the fluid solver: ${event.error.message}`);
     this.onFailure();

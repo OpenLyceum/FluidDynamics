@@ -14,7 +14,7 @@
  */
 
 import { DerivedProperty, type TReadOnlyProperty } from "scenerystack/axon";
-import { toFixed } from "scenerystack/dot";
+import { roundSymmetric, toFixed } from "scenerystack/dot";
 import { type EmptySelfOptions, optionize } from "scenerystack/phet-core";
 import { StringUtils } from "scenerystack/phetcommon";
 import { HBox, type HBoxOptions, Text } from "scenerystack/scenery";
@@ -111,10 +111,10 @@ export function formatReynolds(reynolds: number): string {
     return toFixed(reynolds, 1);
   }
   if (reynolds < 1000) {
-    return Math.round(reynolds).toString();
+    return roundSymmetric(reynolds).toString();
   }
   // Round to two significant figures, so 4237 reads as 4200 rather than
   // implying a precision the model does not have.
   const magnitude = 10 ** (Math.floor(Math.log10(reynolds)) - 1);
-  return (Math.round(reynolds / magnitude) * magnitude).toString();
+  return (roundSymmetric(reynolds / magnitude) * magnitude).toString();
 }

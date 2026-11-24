@@ -158,8 +158,12 @@ export const BIND_LAYOUTS = {
 
 export type BindLayoutName = keyof typeof BIND_LAYOUTS;
 
+function isBindLayoutName(name: string): name is BindLayoutName {
+  return Object.hasOwn(BIND_LAYOUTS, name);
+}
+
 /** @internal Exported for unit tests; not part of the application API. */
-export const BIND_LAYOUT_NAMES = Object.keys(BIND_LAYOUTS) as BindLayoutName[];
+export const BIND_LAYOUT_NAMES = Object.keys(BIND_LAYOUTS).filter(isBindLayoutName);
 
 /**
  * What a layout binds at an index, or undefined if it binds nothing there.
@@ -171,7 +175,8 @@ export const BIND_LAYOUT_NAMES = Object.keys(BIND_LAYOUTS) as BindLayoutName[];
  * @internal Exported for unit tests; not part of the application API.
  */
 export function layoutBinding(name: BindLayoutName, binding: number): BindingSpec | undefined {
-  return (BIND_LAYOUTS[name].bindings as Readonly<Record<number, BindingSpec>>)[binding];
+  const bindings: Readonly<Record<number, BindingSpec>> = BIND_LAYOUTS[name].bindings;
+  return bindings[binding];
 }
 
 /**
