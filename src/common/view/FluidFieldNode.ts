@@ -317,26 +317,24 @@ export class FluidFieldNode extends CanvasNode {
           this.reasonProperty.value = acquisition.reason;
           return;
         }
-        try {
-          this.engine = new WebGPUFluidEngine(
-            this.gpuCanvas,
-            acquisition.device,
-            FluidGridSpec.forResolution(this.model.gridResolutionProperty.value),
-            () => {
-              this.reasonProperty.value = "noDevice";
-            },
-          );
-        } catch {
-          // The engine's constructor reports through onFailure() before it
-          // throws, so the learner already has the "not available" message and
-          // reasonProperty is already set. Catching keeps the throw from
-          // escaping as an unhandled promise rejection, which is noise rather
-          // than information.
+        const creation = WebGPUFluidEngine.create(
+          this.gpuCanvas,
+          acquisition.device,
+          FluidGridSpec.forResolution(this.model.gridResolutionProperty.value),
+          () => {
+            this.reasonProperty.value = "noDevice";
+          },
+        );
+        if (creation.available) {
+          this.engine = creation.engine;
+        } else {
+          this.reasonProperty.value = creation.reason;
         }
       })
-      .catch(() => {
-        // requestDevice() reports failures as { available: false }, so this only
-        // fires on an unexpected bug; show the same "not available" message.
+      .catch((error: unknown) => {
+        // Device acquisition reports expected failures as unavailable results.
+        // biome-ignore lint/suspicious/noConsole: retain diagnostics for an unexpected startup failure
+        console.error("WebGPU startup failed in the fluid field", error);
         if (!this.isFieldDisposed) {
           this.reasonProperty.value = "noDevice";
         }

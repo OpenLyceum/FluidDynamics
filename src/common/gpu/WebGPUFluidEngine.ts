@@ -115,6 +115,8 @@ export type FluidStepValues = Omit<FluidUniformValues, "domainWidth" | "domainHe
   readonly tracersVisible: boolean;
 };
 
+type TrackAllocation = <T extends GPUBuffer | GPUTexture>(allocation: T) => T;
+
 /** A field that must be read and written in the same pass, so it exists twice. */
 class PingPong {
   private readonly textures: [GPUTexture, GPUTexture];
@@ -123,7 +125,13 @@ class PingPong {
   /** Index of the texture holding the current value. */
   public parity: 0 | 1 = 0;
 
-  public constructor(device: GPUDevice, label: string, format: GPUTextureFormat, grid: FluidGridSpec) {
+  public constructor(
+    device: GPUDevice,
+    label: string,
+    format: GPUTextureFormat,
+    grid: FluidGridSpec,
+    trackAllocation: TrackAllocation,
+  ) {
     const descriptor: GPUTextureDescriptor = {
       size: [grid.width, grid.height],
       format,
@@ -132,8 +140,8 @@ class PingPong {
       usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC,
     };
     this.textures = [
-      device.createTexture({ ...descriptor, label: `${label}0` }),
-      device.createTexture({ ...descriptor, label: `${label}1` }),
+      trackAllocation(device.createTexture({ ...descriptor, label: `${label}0` })),
+      trackAllocation(device.createTexture({ ...descriptor, label: `${label}1` })),
     ];
     this.views = [this.textures[0].createView(), this.textures[1].createView()];
   }
@@ -203,6 +211,10 @@ type FluidFields = {
   readonly tracers: GPUBuffer;
 };
 
+type EngineCreation =
+  | { readonly available: true; readonly engine: WebGPUFluidEngine }
+  | { readonly available: false; readonly reason: "noDevice" };
+
 export class WebGPUFluidEngine {
   public readonly canvas: HTMLCanvasElement;
 
@@ -225,7 +237,7 @@ export class WebGPUFluidEngine {
    * keeps this engine — and everything it closes over — alive for the life of
    * the page.
    */
-  private readonly errorListener: (event: Event) => void;
+  private readonly errorListener: (event: GPUUncapturedErrorEvent) => void;
 
   private grid: FluidGridSpec;
 
@@ -304,14 +316,53 @@ export class WebGPUFluidEngine {
   private isDisposed = false;
   private hasFailed = false;
 
-  public constructor(
+  /** Acquire a canvas context and release partial allocations if initialization throws. */
+  public static create(
     canvas: HTMLCanvasElement,
     device: GPUDevice,
     grid: FluidGridSpec,
     onFailure: () => void,
     options?: WebGPUFluidEngineOptions,
+  ): EngineCreation {
+    const rollback: (() => void)[] = [];
+    try {
+      canvas.width = DISPLAY_CANVAS_WIDTH;
+      canvas.height = DISPLAY_CANVAS_HEIGHT;
+      const context = canvas.getContext("webgpu");
+      if (context === null) {
+        return { available: false, reason: "noDevice" };
+      }
+
+      const engine = new WebGPUFluidEngine(canvas, context, device, grid, onFailure, rollback, options);
+      return { available: true, engine };
+    } catch (error) {
+      // Release in reverse acquisition order, with the canvas context last among GPU resources.
+      for (const release of rollback.reverse()) {
+        try {
+          release();
+        } catch (cleanupError) {
+          // biome-ignore lint/suspicious/noConsole: report cleanup failures without masking the initialization error
+          console.error("WebGPU cleanup failed after fluid solver initialization", cleanupError);
+        }
+      }
+
+      // biome-ignore lint/suspicious/noConsole: preserve unexpected GPU initialization errors for diagnosis
+      console.error("WebGPU initialization failed in the fluid solver", error);
+      return { available: false, reason: "noDevice" };
+    }
+  }
+
+  private constructor(
+    canvas: HTMLCanvasElement,
+    context: GPUCanvasContext,
+    device: GPUDevice,
+    grid: FluidGridSpec,
+    onFailure: () => void,
+    rollback: (() => void)[],
+    options?: WebGPUFluidEngineOptions,
   ) {
     this.canvas = canvas;
+    this.context = context;
     this.device = device;
     this.grid = grid;
     this.onFailure = onFailure;
@@ -320,24 +371,11 @@ export class WebGPUFluidEngine {
 
     // Registered before any resource is created, so validation errors raised
     // during pipeline construction are caught too.
-    this.errorListener = (event: Event): void => {
-      this.reportError(event as GPUUncapturedErrorEvent);
-    };
+    this.errorListener = (event) => this.reportError(event);
+    rollback.push(() => device.removeEventListener("uncapturederror", this.errorListener));
     device.addEventListener("uncapturederror", this.errorListener);
 
-    canvas.width = DISPLAY_CANVAS_WIDTH;
-    canvas.height = DISPLAY_CANVAS_HEIGHT;
-
-    const context = canvas.getContext("webgpu");
-    if (context === null) {
-      this.hasFailed = true;
-      // dispose() will never run on a constructor that throws, so the handler
-      // registered above has to come back off the shared device here.
-      device.removeEventListener("uncapturederror", this.errorListener);
-      onFailure();
-      throw new Error("canvas does not support a webgpu context");
-    }
-    this.context = context;
+    rollback.push(() => context.unconfigure());
     this.context.configure({
       device,
       format: this.canvasFormat,
@@ -349,31 +387,39 @@ export class WebGPUFluidEngine {
       alphaMode: "opaque",
     });
 
-    this.uniformBuffer = device.createBuffer({
-      label: "fluid-uniforms",
-      size: UNIFORM_BUFFER_SIZE,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-    });
+    const trackAllocation: TrackAllocation = (allocation) => {
+      rollback.push(() => allocation.destroy());
+      return allocation;
+    };
+    this.uniformBuffer = trackAllocation(
+      device.createBuffer({
+        label: "fluid-uniforms",
+        size: UNIFORM_BUFFER_SIZE,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      }),
+    );
 
     // Clamp-to-edge, so a backtrace that leaves the channel reads the boundary
     // value rather than wrapping around to the far side.
     this.linearSampler = device.createSampler({
-      magFilter: "linear",
-      minFilter: "linear",
       addressModeU: "clamp-to-edge",
       addressModeV: "clamp-to-edge",
+      magFilter: "linear",
+      minFilter: "linear",
     });
 
-    this.displayTexture = device.createTexture({
-      label: "display-target",
-      size: [DISPLAY_CANVAS_WIDTH, DISPLAY_CANVAS_HEIGHT],
-      format: this.canvasFormat,
-      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC,
-    });
+    this.displayTexture = trackAllocation(
+      device.createTexture({
+        label: "display-target",
+        size: [DISPLAY_CANVAS_WIDTH, DISPLAY_CANVAS_HEIGHT],
+        format: this.canvasFormat,
+        usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC,
+      }),
+    );
     this.displayView = this.displayTexture.createView();
 
     this.pipelines = createPipelines(device, this.canvasFormat);
-    this.fields = this.createFields();
+    this.fields = this.createFields(trackAllocation);
     this.bindGroups = this.createBindGroups();
   }
 
@@ -601,6 +647,7 @@ export class WebGPUFluidEngine {
     this.readbackBuffer?.destroy();
     this.velocityReadbackBuffer?.destroy();
     this.uniformBuffer.destroy();
+    this.context.unconfigure();
   }
 
   // ── Frame recording ─────────────────────────────────────────────────────────
@@ -784,73 +831,53 @@ export class WebGPUFluidEngine {
 
   // ── Resources ───────────────────────────────────────────────────────────────
 
-  private createFields(): FluidFields {
+  private createFields(trackAllocation: TrackAllocation = (allocation) => allocation): FluidFields {
     const device = this.device;
     const grid = this.grid;
 
-    const velocity = new PingPong(device, "velocity", VELOCITY_FORMAT, grid);
-    const dye = new PingPong(device, "dye", VELOCITY_FORMAT, grid);
-    const pressure = new PingPong(device, "pressure", SCALAR_FORMAT, grid);
+    const velocity = new PingPong(device, "velocity", VELOCITY_FORMAT, grid, trackAllocation);
+    const dye = new PingPong(device, "dye", VELOCITY_FORMAT, grid, trackAllocation);
+    const pressure = new PingPong(device, "pressure", SCALAR_FORMAT, grid, trackAllocation);
 
-    const storageAndSample = GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING;
+    const createFieldTexture = (label: string, format: GPUTextureFormat): GPUTexture =>
+      trackAllocation(
+        device.createTexture({
+          label,
+          size: [grid.width, grid.height],
+          format,
+          usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
+        }),
+      );
 
-    const velocitySource = device.createTexture({
-      label: "velocity-source",
-      size: [grid.width, grid.height],
-      format: VELOCITY_FORMAT,
-      usage: storageAndSample,
-    });
+    const velocitySource = createFieldTexture("velocity-source", VELOCITY_FORMAT);
     const velocitySourceView = velocitySource.createView();
 
-    const advectTemp = device.createTexture({
-      label: "advect-temp",
-      size: [grid.width, grid.height],
-      format: VELOCITY_FORMAT,
-      usage: storageAndSample,
-    });
+    const advectTemp = createFieldTexture("advect-temp", VELOCITY_FORMAT);
     const advectTempView = advectTemp.createView();
 
-    const dyeTemp = device.createTexture({
-      label: "dye-temp",
-      size: [grid.width, grid.height],
-      format: VELOCITY_FORMAT,
-      usage: storageAndSample,
-    });
+    const dyeTemp = createFieldTexture("dye-temp", VELOCITY_FORMAT);
     const dyeTempView = dyeTemp.createView();
 
-    const obstacle = device.createTexture({
-      label: "obstacle-field",
-      size: [grid.width, grid.height],
-      format: SCALAR_FORMAT,
-      usage: storageAndSample,
-    });
+    const obstacle = createFieldTexture("obstacle-field", SCALAR_FORMAT);
     const obstacleView = obstacle.createView();
 
-    const divergence = device.createTexture({
-      label: "divergence",
-      size: [grid.width, grid.height],
-      format: SCALAR_FORMAT,
-      usage: storageAndSample,
-    });
+    const divergence = createFieldTexture("divergence", SCALAR_FORMAT);
     const divergenceView = divergence.createView();
 
-    const curl = device.createTexture({
-      label: "curl",
-      size: [grid.width, grid.height],
-      format: SCALAR_FORMAT,
-      usage: storageAndSample,
-    });
+    const curl = createFieldTexture("curl", SCALAR_FORMAT);
     const curlView = curl.createView();
 
     // Grid-independent — the dots live in metres, not cells — but created and
     // destroyed with the fields so that reset() and a resolution change clear
     // them along with everything else.
-    const tracers = device.createBuffer({
-      label: "tracers",
-      // vec4<f32> per particle: position in metres, age in seconds, alive flag.
-      size: TRACER_TOTAL_COUNT * 4 * Float32Array.BYTES_PER_ELEMENT,
-      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-    });
+    const tracers = trackAllocation(
+      device.createBuffer({
+        label: "tracers",
+        // vec4<f32> per particle: position in metres, age in seconds, alive flag.
+        size: TRACER_TOTAL_COUNT * 4 * Float32Array.BYTES_PER_ELEMENT,
+        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+      }),
+    );
 
     return {
       velocity,
@@ -1089,8 +1116,7 @@ export class WebGPUFluidEngine {
     // A WebGPU error is otherwise completely silent — it leaves a blank field
     // and no way at all to diagnose what went wrong. The learner still gets the
     // "WebGPU is not available" message via onFailure(); this line is for
-    // whoever has to debug it. It is the only console use in src/, and the
-    // hasFailed guard above means it fires at most once per engine.
+    // whoever has to debug it. The hasFailed guard means it fires at most once per engine.
     // biome-ignore lint/suspicious/noConsole: see above
     console.error(`WebGPU error in the fluid solver: ${event.error.message}`);
     this.onFailure();

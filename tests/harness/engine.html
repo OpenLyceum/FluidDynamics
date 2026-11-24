@@ -64,13 +64,17 @@
           if (!acquisition.available) {
             return { ok: false, reason: acquisition.reason };
           }
-          engine = new WebGPUFluidEngine(
+          const creation = WebGPUFluidEngine.create(
             document.createElement("canvas"),
             acquisition.device,
             FluidGridSpec.forResolution(resolution),
             () => { window.harness.failed = true; },
             { presentToCanvas: false },
           );
+          if (!creation.available) {
+            throw new Error(`Fluid engine initialization failed: ${creation.reason}`);
+          }
+          engine = creation.engine;
           return { ok: true, format: engine.displayFormat };
         },
 
