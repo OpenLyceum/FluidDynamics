@@ -17,7 +17,7 @@
  */
 
 import { Property } from "scenerystack/axon";
-import { Bounds2, Vector2, type Vector2Property } from "scenerystack/dot";
+import { Bounds2, roundSymmetric, Vector2, type Vector2Property } from "scenerystack/dot";
 import { optionize } from "scenerystack/phet-core";
 import type { ModelViewTransform2 } from "scenerystack/phetcommon";
 import {
@@ -78,7 +78,7 @@ export class FluidRulerNode extends Node {
     const majorTickWidth = Math.abs(modelViewTransform.modelToViewDeltaX(RULER_MAJOR_TICK_M));
     const majorTickLabels = Array.from(
       { length: Math.floor(RULER_LENGTH_M / RULER_MAJOR_TICK_M) + 1 },
-      (_, index) => `${Math.round(index * RULER_MAJOR_TICK_M * 100)}`,
+      (_, index) => `${roundSymmetric(index * RULER_MAJOR_TICK_M * 100)}`,
     );
     const tickFont = new PhetFont(14);
 
